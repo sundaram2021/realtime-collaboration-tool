@@ -587,6 +587,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                     rightPanelOpen={rightPanelOpen}
                     onToggleLeftPanel={() => setLeftPanelOpen(!leftPanelOpen)}
                     onToggleRightPanel={() => setRightPanelOpen(!rightPanelOpen)}
+                    setIsShareDialogOpen={setIsShareDialogOpen}
                 />
 
                 {/* Tablet Main Content */}
@@ -692,6 +693,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                 rightPanelOpen={rightPanelOpen}
                 onToggleLeftPanel={() => setLeftPanelOpen(!leftPanelOpen)}
                 onToggleRightPanel={() => setRightPanelOpen(!rightPanelOpen)}
+                setIsShareDialogOpen={setIsShareDialogOpen}
             />
 
             {/* Main content */}

@@ -35,6 +35,7 @@ interface ToolbarProps {
     rightPanelOpen: boolean;
     onToggleLeftPanel: () => void;
     onToggleRightPanel: () => void;
+    setIsShareDialogOpen: (isOpen: boolean) => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -59,6 +60,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     rightPanelOpen,
     onToggleLeftPanel,
     onToggleRightPanel,
+    setIsShareDialogOpen,
 }) => {
     return (
         <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shadow-sm">
@@ -181,12 +183,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 >
                     <Save size={16} />
                 </Button>
-                <RWebShare
-                    data={shareData}
-                    onClick={() => console.log("shared successfully!")}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsShareDialogOpen(true)}
+                    className="p-2"
+                    title="Share Diagram"
                 >
                     <Share2 size={16} />
-                </RWebShare>
+                </Button>
+
                 <Button
                     variant="ghost"
                     size="sm"

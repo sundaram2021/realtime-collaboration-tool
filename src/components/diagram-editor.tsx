@@ -11,9 +11,19 @@ import { useHistory } from '@/hooks/use-history';
 import { useConnections } from '@/hooks/use-connection';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { Shape, Tool, Connection, ConnectionPoint, SelectionBox, HistoryEntry } from './diagram/types';
+import { useSupabaseAuth } from '@/hooks/use-supabase-auth';
+import { useToast } from '@/hooks/use-toast';
+import { useDiagrams } from "@/hooks/use-diagrams";
+import { supabase } from '@/lib/supabaseClient';
+import { ShareDialog } from './diagram/share-dialog';
+import html2canvas from 'html2canvas';
 
-const DiagramEditor: React.FC = () => {
+const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }> = ({ diagramId, permission }) => {
     const canvasRef = useRef<HTMLDivElement>(null);
+    const { session, signInWithGoogle } = useSupabaseAuth();
+    const { toast } = useToast();
+    const { diagram, updateDiagram } = useDiagrams(diagramId);
+    const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
     // Core state management
     const { shapes, setShapes, addShape, updateShape, addShapes } = useShapes();
@@ -49,6 +59,7 @@ const DiagramEditor: React.FC = () => {
     const { copyToClipboard, pasteFromClipboard, hasClipboardData } = useClipboard();
 
     // UI state
+    const [shareUrl, setShareUrl] = useState('');
     const [selectedTool, setSelectedTool] = useState<string>('select');
     const [leftPanelOpen, setLeftPanelOpen] = useState(true);
     const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -59,6 +70,48 @@ const DiagramEditor: React.FC = () => {
     const [isTablet, setIsTablet] = useState(false);
     const [mobilePanel, setMobilePanel] = useState<'shapes' | 'styles' | null>(null);
     const [mobileToolsExpanded, setMobileToolsExpanded] = useState(false);
+
+    useEffect(() => {
+        if (diagram) {
+            setShapes(diagram.data.shapes || []);
+            setConnections(diagram.data.connections || []);
+        }
+    }, [diagram, setShapes, setConnections]);
+
+    useEffect(() => {
+        const channel = supabase.channel(`diagram:${diagramId}`);
+
+        channel
+            .on('broadcast', { event: 'update' }, (payload) => {
+                const { shapes, connections } = payload.payload;
+                setShapes(shapes);
+                setConnections(connections);
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [diagramId, setShapes, setConnections]);
+
+    useEffect(() => {
+        if (diagramId && (shapes.length > 0 || connections.length > 0)) {
+            const diagramData = {
+                shapes,
+                connections,
+            };
+            if (permission === 'edit') {
+                updateDiagram({ id: diagramId, data: diagramData });
+
+                const channel = supabase.channel(`diagram:${diagramId}`);
+                channel.send({
+                    type: 'broadcast',
+                    event: 'update',
+                    payload: { shapes, connections },
+                });
+            }
+        }
+    }, [shapes, connections, diagramId, updateDiagram, permission]);
 
     // Check screen size
     useEffect(() => {
@@ -91,10 +144,12 @@ const DiagramEditor: React.FC = () => {
     }, [clearSelection, isConnecting, cancelConnection, isMobile]);
 
     const handleShapeCreate = useCallback((tool: Tool, x: number, y: number) => {
-        const shape = addShape(tool, x, y);
-        selectShape(shape.id);
-        setSelectedTool('select');
-    }, [addShape, selectShape]);
+        if (permission === 'edit') {
+            const shape = addShape(tool, x, y);
+            selectShape(shape.id);
+            setSelectedTool('select');
+        }
+    }, [addShape, selectShape, permission]);
 
     const handleShapeSelect = useCallback((id: string | null, multiSelect = false) => {
         if (id === null) {
@@ -103,17 +158,19 @@ const DiagramEditor: React.FC = () => {
             selectShape(id, multiSelect);
         }
     }, [selectShape, clearSelection]);
-    
+
     const handleMultiSelect = useCallback((ids: string[]) => {
         selectShapes(ids);
     }, [selectShapes]);
 
     const handleShapeUpdate = useCallback((id: string, updates: Partial<Shape>) => {
-        updateShape(id, updates);
-    }, [updateShape]);
+        if (permission === 'edit') {
+            updateShape(id, updates);
+        }
+    }, [updateShape, permission]);
 
     const handleShapeDelete = useCallback(() => {
-        if (selectedIds.size > 0) {
+        if (selectedIds.size > 0 && permission === 'edit') {
             const newShapes = shapes.filter(shape => !selectedIds.has(shape.id));
             const newConnections = connections.filter(
                 conn => !selectedIds.has(conn.startShapeId) && !selectedIds.has(conn.endShapeId)
@@ -122,7 +179,7 @@ const DiagramEditor: React.FC = () => {
             setConnections(newConnections);
             clearSelection();
         }
-    }, [selectedIds, shapes, connections, setShapes, setConnections, clearSelection]);
+    }, [selectedIds, shapes, connections, setShapes, setConnections, clearSelection, permission]);
 
     const handleCopy = useCallback(() => {
         if (selectedShapes.length > 0) {
@@ -134,38 +191,135 @@ const DiagramEditor: React.FC = () => {
     }, [selectedShapes, selectedIds, connections, copyToClipboard]);
 
     const handlePaste = useCallback(() => {
-        if (hasClipboardData) {
+        if (hasClipboardData && permission === 'edit') {
             const { shapes: newShapes, connections: newConnections } = pasteFromClipboard();
             addShapes(newShapes);
             addConnections(newConnections);
             selectShapes(newShapes.map(s => s.id));
         }
-    }, [hasClipboardData, pasteFromClipboard, addShapes, addConnections, selectShapes]);
+    }, [hasClipboardData, pasteFromClipboard, addShapes, addConnections, selectShapes, permission]);
 
     const handleSelectAll = useCallback(() => {
         selectAll();
     }, [selectAll]);
 
+    const handleSaveToDrive = useCallback(async () => {
+        if (!session || !session.provider_token) {
+            toast({
+                title: "Authentication Error",
+                description: "You need to re-authenticate with Google Drive.",
+                variant: "destructive",
+            });
+            signInWithGoogle();
+            return;
+        }
+
+        if (!canvasRef.current) {
+            toast({
+                title: "Error",
+                description: "Could not find the canvas to save.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        try {
+            const canvas = await html2canvas(canvasRef.current);
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    toast({
+                        title: "Error",
+                        description: "Failed to create image from diagram.",
+                        variant: "destructive",
+                    });
+                    return;
+                }
+
+                const fileName = `diagram-${new Date().toISOString()}.png`;
+                const metadata = {
+                    name: fileName,
+                    mimeType: 'image/png',
+                };
+
+                const form = new FormData();
+                form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                form.append('file', blob);
+
+                const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${session.provider_token}`,
+                    },
+                    body: form,
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error.message || 'Failed to upload file.');
+                }
+
+                toast({
+                    title: "Diagram Saved",
+                    description: "Your diagram has been saved to Google Drive as an image.",
+                });
+
+            }, 'image/png');
+
+        } catch (error: any) {
+            console.error("Error saving to Google Drive:", error);
+            toast({
+                title: "Error",
+                description: error.message || "There was an error saving your diagram to Google Drive.",
+                variant: "destructive",
+            });
+        }
+    }, [session, toast, signInWithGoogle]);
+
+
     const handleConnectionStart = useCallback((point: ConnectionPoint, tool: Tool) => {
-        startConnection(point, tool);
-    }, [startConnection]);
+        if (permission === 'edit') {
+            startConnection(point, tool);
+        }
+    }, [startConnection, permission]);
 
     const handleConnectionComplete = useCallback((endPoint: ConnectionPoint) => {
-        completeConnection(endPoint);
-    }, [completeConnection]);
+        if (permission === 'edit') {
+            completeConnection(endPoint);
+        }
+    }, [completeConnection, permission]);
 
     const handleConnectionCancel = useCallback(() => {
         cancelConnection();
     }, [cancelConnection]);
 
     const handleConnectionUpdate = useCallback((id: string, updates: Partial<any>) => {
-        updateConnection(id, updates);
-    }, [updateConnection]);
-    
-    // Pass null for selection box update, since it's not used in this component
+        if (permission === 'edit') {
+            updateConnection(id, updates);
+        }
+    }, [updateConnection, permission]);
+
     const handleSelectionBoxUpdate = useCallback((box: SelectionBox | null) => {
         // let's just ignore this function for now as this will already be handle in canvas component ....will find something later
     }, []);
+
+    const handleDownload = useCallback(() => {
+        if (!canvasRef.current) {
+            toast({
+                title: "Error",
+                description: "Could not find the canvas to download.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        html2canvas(canvasRef.current).then((canvas) => {
+            const link = document.createElement('a');
+            link.download = `diagram-${new Date().toISOString()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }, [toast]);
+
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -215,7 +369,16 @@ const DiagramEditor: React.FC = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleKeyDown]);
 
-    if (isMobile) {
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.origin + "/diagramm");
+            url.searchParams.set('id', diagramId);
+            url.searchParams.set('permission', 'view');
+            setShareUrl(url.toString());
+        }
+    }, [diagramId]);
+
+     if (isMobile) {
         return (
             <div className="h-screen bg-gray-50 flex flex-col">
                 {/* Mobile Header */}
@@ -400,6 +563,11 @@ const DiagramEditor: React.FC = () => {
                 {/* Tablet Toolbar */}
                 <Toolbar
                     selectedTool={selectedTool}
+                    shareData={{
+                        title: 'Diagram-'+diagramId,
+                        text: 'Check out this diagram!',
+                        url: shareUrl,
+                    }}
                     onToolSelect={handleToolSelect}
                     zoom={zoom}
                     onZoomChange={setZoom}
@@ -409,6 +577,8 @@ const DiagramEditor: React.FC = () => {
                     onRedo={redo}
                     onDelete={handleShapeDelete}
                     onCopy={handleCopy}
+                    onDownload={handleDownload}
+                    onSaveToDrive={handleSaveToDrive}
                     onPaste={handlePaste}
                     onSelectAll={handleSelectAll}
                     hasSelection={selectedIds.size > 0}
@@ -474,9 +644,11 @@ const DiagramEditor: React.FC = () => {
         );
     }
 
+
     // Desktop Layout
     return (
         <div className="h-screen bg-gray-100 flex flex-col">
+            {isShareDialogOpen && <ShareDialog diagramId={diagramId} onClose={() => setIsShareDialogOpen(false)} />}
             {/* Header */}
             <header className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shadow-sm">
                 <div className="flex items-center space-x-6">
@@ -496,16 +668,23 @@ const DiagramEditor: React.FC = () => {
             {/* Toolbar */}
             <Toolbar
                 selectedTool={selectedTool}
+                shareData={{
+                    title: "Diagram-" + diagramId,
+                    text: "Diagram from Diagram Creator",
+                    url: shareUrl
+                }}
                 onToolSelect={handleToolSelect}
                 zoom={zoom}
                 onZoomChange={setZoom}
                 canUndo={canUndo}
+                onDownload={handleDownload}
                 canRedo={canRedo}
                 onUndo={undo}
                 onRedo={redo}
                 onDelete={handleShapeDelete}
                 onCopy={handleCopy}
                 onPaste={handlePaste}
+                onSaveToDrive={handleSaveToDrive}
                 onSelectAll={handleSelectAll}
                 hasSelection={selectedIds.size > 0}
                 hasClipboard={hasClipboardData}
@@ -528,9 +707,8 @@ const DiagramEditor: React.FC = () => {
                 )}
 
                 {/* Canvas area */}
-                <div className="flex-1 relative">
+                <div className="flex-1 relative" ref={canvasRef}>
                     <Canvas
-                        ref={canvasRef}
                         shapes={shapes}
                         connections={connections}
                         selectedIds={selectedIds}

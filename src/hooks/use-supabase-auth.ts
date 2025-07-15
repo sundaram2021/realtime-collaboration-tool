@@ -24,7 +24,7 @@ export const useSupabaseAuth = () => {
             }
             return data.session;
         },
-        staleTime: Infinity, 
+        staleTime: Infinity,
     });
 
     useEffect(() => {
@@ -45,6 +45,11 @@ export const useSupabaseAuth = () => {
                 provider: 'google',
                 options: {
                     redirectTo: `${window.location.origin}/auth/callback`,
+                    queryParams: {
+                        access_type: 'offline',
+                        prompt: 'consent',
+                    },
+                    scopes: 'https://www.googleapis.com/auth/drive.file',
                 },
             });
             if (error) throw error;
@@ -76,10 +81,10 @@ export const useSupabaseAuth = () => {
         user,
         isAuthenticated,
 
-        isLoadingSession, 
-        isErrorSession,   
-        isSigningIn,      
-        isSigningOut,     
+        isLoadingSession,
+        isErrorSession,
+        isSigningIn,
+        isSigningOut,
         signInWithGoogle,
         signOut,
     };

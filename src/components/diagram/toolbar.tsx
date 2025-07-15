@@ -1,13 +1,21 @@
 import React from 'react';
+import { RWebShare } from "react-web-share";
 import {
     MousePointer, ZoomIn, ZoomOut, Undo, Redo, Trash2,
     Copy, Download, Upload, Home, Grid, Eye, ChevronRight,
-    Square, Clipboard
+    Square, Clipboard, Save, Share2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+interface ShareData {
+    title: string;
+    text: string;
+    url: string;
+}
+
 interface ToolbarProps {
     selectedTool: string;
+    shareData: ShareData;
     onToolSelect: (tool: string) => void;
     zoom: number;
     onZoomChange: (zoom: number) => void;
@@ -18,6 +26,8 @@ interface ToolbarProps {
     onDelete: () => void;
     onCopy: () => void;
     onPaste: () => void;
+    onSaveToDrive: () => void;
+    onDownload: () => void;
     onSelectAll: () => void;
     hasSelection: boolean;
     hasClipboard: boolean;
@@ -29,6 +39,7 @@ interface ToolbarProps {
 
 export const Toolbar: React.FC<ToolbarProps> = ({
     selectedTool,
+    shareData,
     onToolSelect,
     zoom,
     onZoomChange,
@@ -39,6 +50,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     onDelete,
     onCopy,
     onPaste,
+    onSaveToDrive,
+    onDownload,
     onSelectAll,
     hasSelection,
     hasClipboard,
@@ -159,7 +172,28 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 <div className="w-px h-6 bg-gray-300" />
 
                 {/* File operations */}
-                <Button variant="ghost" size="sm" className="p-2">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onSaveToDrive}
+                    className="p-2"
+                    title="Save to Google Drive"
+                >
+                    <Save size={16} />
+                </Button>
+                <RWebShare
+                    data={shareData}
+                    onClick={() => console.log("shared successfully!")}
+                >
+                    <Share2 size={16} />
+                </RWebShare>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onDownload}
+                    className="p-2"
+                    title="Download as PNG"
+                >
                     <Download size={16} />
                 </Button>
                 <Button variant="ghost" size="sm" className="p-2">

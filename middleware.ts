@@ -4,15 +4,16 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function middleware(request: NextRequest) {
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req: request, res });
-  
+
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login') 
-  
-  const isProtectedRoute = !request.nextUrl.pathname.startsWith('/login') && 
-                          request.nextUrl.pathname !== '/';
+  const isAuthPage = request.nextUrl.pathname.startsWith('/login')
+  const isAuthCallback = request.nextUrl.pathname.startsWith('/auth/callback');
+
+  const isProtectedRoute = !isAuthPage && !isAuthCallback && request.nextUrl.pathname !== '/';
+
 
   // Handle root route
   if (request.nextUrl.pathname === '/') {

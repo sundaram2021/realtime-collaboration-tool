@@ -31,6 +31,11 @@ export interface Connection {
   width: number;
 }
 
+export interface HistoryEntry {
+  shapes: Shape[];
+  connections: Connection[];
+}
+
 export interface Tool {
   id: string;
   type: string;

@@ -60,6 +60,7 @@ export const useConnections = () => {
 
   return {
     connections,
+    setConnections, 
     isConnecting,
     connectionStart,
     startConnection,

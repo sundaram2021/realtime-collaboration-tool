@@ -10,15 +10,13 @@ import { useSelection } from '@/hooks/use-selection';
 import { useHistory } from '@/hooks/use-history';
 import { useConnections } from '@/hooks/use-connection';
 import { useClipboard } from '@/hooks/use-clipboard';
-import { Shape, Tool, ConnectionPoint, SelectionBox } from './diagram/types';
+import { Shape, Tool, Connection, ConnectionPoint, SelectionBox, HistoryEntry } from './diagram/types';
 
 const DiagramEditor: React.FC = () => {
     const canvasRef = useRef<HTMLDivElement>(null);
 
-    // console.log("canvas", canvasRef)
-
     // Core state management
-    const { shapes, addShape, updateShape, deleteShape, clearShapes, addShapes } = useShapes();
+    const { shapes, setShapes, addShape, updateShape, addShapes } = useShapes();
     const {
         selectedIds,
         selectedShapes,
@@ -27,16 +25,11 @@ const DiagramEditor: React.FC = () => {
         selectShapes,
         clearSelection,
         selectAll,
-        isSelecting,
-        setIsSelecting,
-        selectionBox,
-        setSelectionBox,
-        getShapesInBox
     } = useSelection(shapes);
 
-    const { saveState, undo, redo, canUndo, canRedo } = useHistory(shapes);
     const {
         connections,
+        setConnections,
         isConnecting,
         connectionStart,
         startConnection,
@@ -45,6 +38,13 @@ const DiagramEditor: React.FC = () => {
         addConnections,
         updateConnection
     } = useConnections();
+
+    const restoreState = useCallback(({ shapes, connections }: HistoryEntry) => {
+        setShapes(shapes);
+        setConnections(connections);
+    }, [setShapes, setConnections]);
+
+    const { saveState, undo, redo, canUndo, canRedo } = useHistory(restoreState);
 
     const { copyToClipboard, pasteFromClipboard, hasClipboardData } = useClipboard();
 
@@ -67,16 +67,15 @@ const DiagramEditor: React.FC = () => {
             setIsMobile(width < 768);
             setIsTablet(width >= 768 && width < 1024);
         };
-
         checkScreenSize();
         window.addEventListener('resize', checkScreenSize);
         return () => window.removeEventListener('resize', checkScreenSize);
     }, []);
 
-    // Save state when shapes change
+    // Save state when shapes or connections change
     useEffect(() => {
-        saveState(shapes);
-    }, [shapes, saveState]);
+        saveState({ shapes, connections });
+    }, [shapes, connections, saveState]);
 
     const handleToolSelect = useCallback((toolId: string) => {
         setSelectedTool(toolId);
@@ -104,7 +103,7 @@ const DiagramEditor: React.FC = () => {
             selectShape(id, multiSelect);
         }
     }, [selectShape, clearSelection]);
-
+    
     const handleMultiSelect = useCallback((ids: string[]) => {
         selectShapes(ids);
     }, [selectShapes]);
@@ -115,12 +114,15 @@ const DiagramEditor: React.FC = () => {
 
     const handleShapeDelete = useCallback(() => {
         if (selectedIds.size > 0) {
-            selectedIds.forEach(id => {
-                deleteShape(id);
-            });
+            const newShapes = shapes.filter(shape => !selectedIds.has(shape.id));
+            const newConnections = connections.filter(
+                conn => !selectedIds.has(conn.startShapeId) && !selectedIds.has(conn.endShapeId)
+            );
+            setShapes(newShapes);
+            setConnections(newConnections);
             clearSelection();
         }
-    }, [selectedIds, deleteShape, clearSelection]);
+    }, [selectedIds, shapes, connections, setShapes, setConnections, clearSelection]);
 
     const handleCopy = useCallback(() => {
         if (selectedShapes.length > 0) {
@@ -159,10 +161,11 @@ const DiagramEditor: React.FC = () => {
     const handleConnectionUpdate = useCallback((id: string, updates: Partial<any>) => {
         updateConnection(id, updates);
     }, [updateConnection]);
-
-    const handleSelectionBoxUpdate = useCallback((box: SelectionBox) => {
-        setSelectionBox(box);
-    }, [setSelectionBox]);
+    
+    // Pass null for selection box update, since it's not used in this component
+    const handleSelectionBoxUpdate = useCallback((box: SelectionBox | null) => {
+        // let's just ignore this function for now as this will already be handle in canvas component ....will find something later
+    }, []);
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -175,16 +178,21 @@ const DiagramEditor: React.FC = () => {
             cancelConnection();
         }
 
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            e.preventDefault();
+            undo();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
+            e.preventDefault();
+            redo();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+            e.preventDefault();
+            redo();
+        }
+
         if (e.ctrlKey || e.metaKey) {
             switch (e.key) {
-                case 'z':
-                    e.preventDefault();
-                    undo();
-                    break;
-                case 'y':
-                    e.preventDefault();
-                    redo();
-                    break;
                 case 'c':
                     e.preventDefault();
                     handleCopy();
@@ -200,6 +208,7 @@ const DiagramEditor: React.FC = () => {
             }
         }
     }, [handleShapeDelete, undo, redo, isConnecting, cancelConnection, handleCopy, handlePaste, handleSelectAll]);
+
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeyDown);

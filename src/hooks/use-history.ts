@@ -1,32 +1,19 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Shape } from '@/components/diagram/types';
+import { HistoryEntry } from '@/components/diagram/types';
 
 interface HistoryState {
-  history: Shape[][];
+  history: HistoryEntry[];
   index: number;
 }
 
-export const useHistory = (initialShapes: Shape[]) => {
+export const useHistory = (restoreState: (state: HistoryEntry) => void) => {
   const [state, setState] = useState<HistoryState>({
-    history: [],
-    index: -1
+    history: [{ shapes: [], connections: [] }],
+    index: 0
   });
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isInitialized = useRef(false);
+  const isRestoring = useRef(false);
 
-  // Initialize with initial shapes
-  useEffect(() => {
-    if (!isInitialized.current) {
-      const initialState = JSON.parse(JSON.stringify(initialShapes || []));
-      setState({
-        history: [initialState],
-        index: 0
-      });
-      isInitialized.current = true;
-    }
-  }, [initialShapes]);
-
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
@@ -35,28 +22,29 @@ export const useHistory = (initialShapes: Shape[]) => {
     };
   }, []);
 
-  const saveState = useCallback((shapes: Shape[]) => {
-    // Clear any pending timeout
+  const saveState = useCallback((currentState: HistoryEntry) => {
+    if (isRestoring.current) {
+        isRestoring.current = false;
+        return;
+    }
+    
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
 
     timeoutRef.current = setTimeout(() => {
       setState(prevState => {
-        // Remove any future history if we're not at the end
         const newHistory = prevState.history.slice(0, prevState.index + 1);
+        const newState = JSON.parse(JSON.stringify(currentState));
+
+        if (JSON.stringify(newState) === JSON.stringify(newHistory[newHistory.length - 1])) {
+            return prevState;
+        }
         
-        // Add the new state (deep clone to avoid mutations)
-        const newState = JSON.parse(JSON.stringify(shapes));
         newHistory.push(newState);
-        
-        // Limit history size
+
         if (newHistory.length > 50) {
           newHistory.shift();
-          return {
-            history: newHistory,
-            index: newHistory.length - 1
-          };
         }
         
         return {
@@ -69,36 +57,37 @@ export const useHistory = (initialShapes: Shape[]) => {
 
   const undo = useCallback(() => {
     if (state.index > 0) {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current); // Cancel any pending save
+      isRestoring.current = true;
       const newIndex = state.index - 1;
+      const previousState = state.history[newIndex];
+      restoreState(JSON.parse(JSON.stringify(previousState)));
       setState(prev => ({
         ...prev,
         index: newIndex
       }));
-      // Return a deep clone to avoid mutations
-      return JSON.parse(JSON.stringify(state.history[newIndex]));
     }
-    return null;
-  }, [state.history, state.index]);
+  }, [state.history, state.index, restoreState]);
 
   const redo = useCallback(() => {
     if (state.index < state.history.length - 1) {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current); // Cancel any pending save
+      isRestoring.current = true;
       const newIndex = state.index + 1;
+      const nextState = state.history[newIndex];
+      restoreState(JSON.parse(JSON.stringify(nextState)));
       setState(prev => ({
         ...prev,
         index: newIndex
       }));
-      // Return a deep clone to avoid mutations
-      return JSON.parse(JSON.stringify(state.history[newIndex]));
     }
-    return null;
-  }, [state.history, state.index]);
+  }, [state.history, state.index, restoreState]);
 
   const clearHistory = useCallback(() => {
     setState({
-      history: [],
-      index: -1
+      history: [{ shapes: [], connections: [] }],
+      index: 0
     });
-    isInitialized.current = false;
   }, []);
 
   const canUndo = state.index > 0;
@@ -111,7 +100,5 @@ export const useHistory = (initialShapes: Shape[]) => {
     clearHistory,
     canUndo,
     canRedo,
-    currentHistoryIndex: state.index,
-    historyLength: state.history.length,
   };
 };

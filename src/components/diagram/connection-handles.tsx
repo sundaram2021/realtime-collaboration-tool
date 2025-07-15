@@ -63,8 +63,8 @@ export const ConnectionHandles: React.FC<ConnectionHandlesProps> = ({
                     >
                         <div
                             className={`w-full h-full rounded-full border-2 border-white transition-colors duration-200 ${isConnecting
-                                ? (isHovered ? 'bg-green-600 shadow-lg' : 'bg-green-500')
-                                : (isHovered ? 'bg-blue-600 shadow-lg' : 'bg-blue-500')
+                                    ? (isHovered ? 'bg-green-600 shadow-lg' : 'bg-green-500')
+                                    : (isHovered ? 'bg-blue-600 shadow-lg' : 'bg-blue-500')
                                 }`}
                             style={{
                                 boxShadow: isHovered ?

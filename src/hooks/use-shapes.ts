@@ -11,7 +11,7 @@ export const useShapes = () => {
     
     return {
       id,
-      type: tool.type,
+      type: tool.type, // This ensures the correct type is set
       x: x - (tool.defaultWidth || 100) / 2,
       y: y - (tool.defaultHeight || 60) / 2,
       width: tool.defaultWidth || 100,

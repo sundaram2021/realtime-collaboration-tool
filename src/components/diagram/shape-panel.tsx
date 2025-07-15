@@ -7,7 +7,6 @@ import {
 import { Tool } from './types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
 const shapes: Tool[] = [
     // Basic shapes
     { id: 'rectangle', type: 'rectangle', label: 'Rectangle', category: 'Basic', icon: Square, defaultWidth: 120, defaultHeight: 80 },

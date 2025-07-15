@@ -1,58 +1,117 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Shape } from '@/components/diagram/types';
 
-export const useHistory = (currentShapes: Shape[]) => {
-  const [history, setHistory] = useState<Shape[][]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+interface HistoryState {
+  history: Shape[][];
+  index: number;
+}
+
+export const useHistory = (initialShapes: Shape[]) => {
+  const [state, setState] = useState<HistoryState>({
+    history: [],
+    index: -1
+  });
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialized = useRef(false);
+
+  // Initialize with initial shapes
+  useEffect(() => {
+    if (!isInitialized.current) {
+      const initialState = JSON.parse(JSON.stringify(initialShapes || []));
+      setState({
+        history: [initialState],
+        index: 0
+      });
+      isInitialized.current = true;
+    }
+  }, [initialShapes]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   const saveState = useCallback((shapes: Shape[]) => {
-    // Debounce history saves to avoid too many entries
+    // Clear any pending timeout
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
 
     timeoutRef.current = setTimeout(() => {
-      setHistory(prev => {
-        const newHistory = prev.slice(0, historyIndex + 1);
-        newHistory.push(JSON.parse(JSON.stringify(shapes)));
+      setState(prevState => {
+        // Remove any future history if we're not at the end
+        const newHistory = prevState.history.slice(0, prevState.index + 1);
+        
+        // Add the new state (deep clone to avoid mutations)
+        const newState = JSON.parse(JSON.stringify(shapes));
+        newHistory.push(newState);
         
         // Limit history size
         if (newHistory.length > 50) {
           newHistory.shift();
-          return newHistory;
+          return {
+            history: newHistory,
+            index: newHistory.length - 1
+          };
         }
         
-        setHistoryIndex(newHistory.length - 1);
-        return newHistory;
+        return {
+          history: newHistory,
+          index: newHistory.length - 1
+        };
       });
     }, 300);
-  }, [historyIndex]);
+  }, []);
 
   const undo = useCallback(() => {
-    if (historyIndex > 0) {
-      setHistoryIndex(prev => prev - 1);
-      return history[historyIndex - 1];
+    if (state.index > 0) {
+      const newIndex = state.index - 1;
+      setState(prev => ({
+        ...prev,
+        index: newIndex
+      }));
+      // Return a deep clone to avoid mutations
+      return JSON.parse(JSON.stringify(state.history[newIndex]));
     }
     return null;
-  }, [history, historyIndex]);
+  }, [state.history, state.index]);
 
   const redo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      setHistoryIndex(prev => prev + 1);
-      return history[historyIndex + 1];
+    if (state.index < state.history.length - 1) {
+      const newIndex = state.index + 1;
+      setState(prev => ({
+        ...prev,
+        index: newIndex
+      }));
+      // Return a deep clone to avoid mutations
+      return JSON.parse(JSON.stringify(state.history[newIndex]));
     }
     return null;
-  }, [history, historyIndex]);
+  }, [state.history, state.index]);
 
-  const canUndo = historyIndex > 0;
-  const canRedo = historyIndex < history.length - 1;
+  const clearHistory = useCallback(() => {
+    setState({
+      history: [],
+      index: -1
+    });
+    isInitialized.current = false;
+  }, []);
+
+  const canUndo = state.index > 0;
+  const canRedo = state.index < state.history.length - 1;
 
   return {
     saveState,
     undo,
     redo,
+    clearHistory,
     canUndo,
     canRedo,
+    currentHistoryIndex: state.index,
+    historyLength: state.history.length,
   };
 };

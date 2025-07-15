@@ -4,6 +4,7 @@ import { ConnectionLayer } from './connection-layer';
 import { ConnectionHandles } from './connection-handles';
 import { ShapeRenderer } from './shape-renderer';
 
+
 interface CanvasProps {
     shapes: Shape[];
     connections: Connection[];
@@ -22,6 +23,7 @@ interface CanvasProps {
     onConnectionStart: (point: ConnectionPoint, tool: Tool) => void;
     onConnectionComplete: (endPoint: ConnectionPoint) => void;
     onConnectionCancel: () => void;
+    onConnectionUpdate: (id: string, updates: Partial<Connection>) => void;
     onSelectionBoxUpdate?: (box: SelectionBox) => void;
 }
 
@@ -45,6 +47,7 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     onConnectionStart,
     onConnectionComplete,
     onConnectionCancel,
+    onConnectionUpdate,
     onSelectionBoxUpdate,
 }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -56,14 +59,16 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [isEditingText, setIsEditingText] = useState(false);
     const [editText, setEditText] = useState('');
+    const [editingShapeId, setEditingShapeId] = useState<string | null>(null);
     const [isSelecting, setIsSelecting] = useState(false);
     const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
     const [hoveredHandle, setHoveredHandle] = useState<ConnectionHandle | null>(null);
     const [draggedShapes, setDraggedShapes] = useState<Map<string, { x: number; y: number }>>(new Map());
     const [resizeStart, setResizeStart] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
-    // Get tools data for shape creation
-    const getToolById = (toolId: string): Tool | null => {
+    // console.log("container ref: ", containerRef)
+
+    const getToolById = useCallback((toolId: string): Tool | null => {
         const tools = [
             { id: 'rectangle', type: 'rectangle', label: 'Rectangle', category: 'Basic', icon: () => null, defaultWidth: 120, defaultHeight: 80 },
             { id: 'circle', type: 'circle', label: 'Circle', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 100 },
@@ -74,7 +79,6 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
             { id: 'star', type: 'star', label: 'Star', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 80 },
             { id: 'heart', type: 'heart', label: 'Heart', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 80 },
             { id: 'text', type: 'text', label: 'Text', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 30 },
-            // Connection tools
             { id: 'line-straight', type: 'connection', label: 'Line', category: 'Connections', icon: () => null, isConnection: true },
             { id: 'line-arrow', type: 'connection', label: 'Arrow', category: 'Connections', icon: () => null, isConnection: true },
             { id: 'line-double-arrow', type: 'connection', label: 'Double Arrow', category: 'Connections', icon: () => null, isConnection: true },
@@ -83,7 +87,56 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
             { id: 'line-dotted-double', type: 'connection', label: 'Dotted Double', category: 'Connections', icon: () => null, isConnection: true },
         ];
         return tools.find(t => t.id === toolId) || null;
-    };
+    }, []);
+
+    const updateConnectionsForShape = useCallback((shapeId: string, shape: Shape) => {
+        connections.forEach(connection => {
+            if (connection.startShapeId === shapeId || connection.endShapeId === shapeId) {
+                const updates: Partial<Connection> = {};
+
+                if (connection.startShapeId === shapeId) {
+                    const startPoint = getConnectionPointForShape(shape, connection.startPoint);
+                    updates.startPoint = startPoint;
+                }
+
+                if (connection.endShapeId === shapeId) {
+                    const endPoint = getConnectionPointForShape(shape, connection.endPoint);
+                    updates.endPoint = endPoint;
+                }
+
+                onConnectionUpdate(connection.id, updates);
+            }
+        });
+    }, [connections, onConnectionUpdate]);
+
+    const getConnectionPointForShape = useCallback((shape: Shape, originalPoint: { x: number; y: number }) => {
+        const centerX = shape.x + shape.width / 2;
+        const centerY = shape.y + shape.height / 2;
+
+        const distances = {
+            top: Math.abs(originalPoint.y - shape.y),
+            bottom: Math.abs(originalPoint.y - (shape.y + shape.height)),
+            left: Math.abs(originalPoint.x - shape.x),
+            right: Math.abs(originalPoint.x - (shape.x + shape.width)),
+        };
+
+        const closestSide = Object.keys(distances).reduce((a, b) =>
+            distances[a as keyof typeof distances] < distances[b as keyof typeof distances] ? a : b
+        ) as 'top' | 'right' | 'bottom' | 'left';
+
+        switch (closestSide) {
+            case 'top':
+                return { x: centerX, y: shape.y };
+            case 'bottom':
+                return { x: centerX, y: shape.y + shape.height };
+            case 'left':
+                return { x: shape.x, y: centerY };
+            case 'right':
+                return { x: shape.x + shape.width, y: centerY };
+            default:
+                return { x: centerX, y: centerY };
+        }
+    }, []);
 
     const getCanvasCoordinates = useCallback((clientX: number, clientY: number) => {
         const container = containerRef.current;
@@ -111,7 +164,6 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
         const centerX = shape.x + shape.width / 2;
         const centerY = shape.y + shape.height / 2;
 
-        // Determine which side is closest
         const distances = {
             top: Math.abs(y - shape.y),
             bottom: Math.abs(y - (shape.y + shape.height)),
@@ -166,7 +218,7 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                 const distance = Math.sqrt(
                     Math.pow(x - handle.x, 2) + Math.pow(y - handle.y, 2)
                 );
-                if (distance <= 15 / zoom) { // Adjust hit area based on zoom
+                if (distance <= 15 / zoom) {
                     return handle;
                 }
             }
@@ -196,21 +248,28 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
         return null;
     }, [zoom]);
 
+    const handleShapeUpdate = useCallback((id: string, updates: Partial<Shape>) => {
+        onShapeUpdate(id, updates);
+
+        const updatedShape = shapes.find(s => s.id === id);
+        if (updatedShape) {
+            const newShape = { ...updatedShape, ...updates };
+            updateConnectionsForShape(id, newShape);
+        }
+    }, [onShapeUpdate, shapes, updateConnectionsForShape]);
+
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         const coords = getCanvasCoordinates(e.clientX, e.clientY);
 
-        // Check for panning (middle mouse or space+click)
         if (e.button === 1 || (e.button === 0 && e.ctrlKey)) {
             setIsPanning(true);
             setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
             return;
         }
 
-        // Check for connection handles first (only when connecting or handle is visible)
         const handle = getHandleAt(coords.x, coords.y);
         if (handle) {
             if (isConnecting && connectionStart && handle.shapeId !== connectionStart.shapeId) {
-                // Complete connection
                 const connectionPoint = {
                     shapeId: handle.shapeId,
                     x: handle.x,
@@ -220,7 +279,6 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                 onConnectionComplete(connectionPoint);
                 return;
             } else if (selectedTool === 'select' && !isConnecting) {
-                // Start new connection
                 const tool = getToolById('line-arrow');
                 if (tool) {
                     const connectionPoint = {
@@ -239,7 +297,6 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
 
         if (selectedTool === 'select') {
             if (clickedShape && selectedIds.has(clickedShape.id)) {
-                // Check for resize handles first
                 const resizeHandle = getResizeHandleAt(coords.x, coords.y, clickedShape);
                 if (resizeHandle) {
                     setIsResizing(true);
@@ -254,11 +311,9 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
             }
 
             if (clickedShape) {
-                // Handle selection
                 const multiSelect = e.shiftKey || e.metaKey;
                 onShapeSelect(clickedShape.id, multiSelect);
 
-                // Start dragging - store initial positions of all selected shapes
                 const initialPositions = new Map();
                 selectedIds.forEach(id => {
                     const shape = shapes.find(s => s.id === id);
@@ -267,7 +322,6 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                     }
                 });
 
-                // If we clicked on a shape that's not selected, add it to the selection
                 if (!selectedIds.has(clickedShape.id)) {
                     initialPositions.set(clickedShape.id, { x: clickedShape.x, y: clickedShape.y });
                 }
@@ -280,7 +334,6 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                     y: coords.y - clickedShape.y,
                 });
             } else {
-                // Start selection box or cancel connection
                 if (isConnecting) {
                     onConnectionCancel();
                     return;
@@ -301,24 +354,21 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
             const tool = getToolById(selectedTool);
             if (tool) {
                 if (tool.isConnection) {
-                    // Handle connection tool
                     if (clickedShape) {
                         const connectionPoint = getConnectionPoint(clickedShape, coords.x, coords.y);
                         onConnectionStart(connectionPoint, tool);
                     }
                 } else {
-                    // Create new shape
                     onShapeCreate(tool, coords.x, coords.y);
                 }
             }
         }
-    }, [selectedTool, getCanvasCoordinates, getShapeAt, getHandleAt, getResizeHandleAt, selectedIds, onShapeSelect, onShapeCreate, onConnectionStart, onConnectionComplete, onConnectionCancel, getConnectionPoint, pan, shapes, isConnecting, connectionStart]);
+    }, [selectedTool, getCanvasCoordinates, getShapeAt, getHandleAt, getResizeHandleAt, selectedIds, onShapeSelect, onShapeCreate, onConnectionStart, onConnectionComplete, onConnectionCancel, getConnectionPoint, pan, shapes, isConnecting, connectionStart, getToolById]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
         const coords = getCanvasCoordinates(e.clientX, e.clientY);
         setMousePos(coords);
 
-        // Update hovered handle
         const handle = getHandleAt(coords.x, coords.y);
         setHoveredHandle(handle);
 
@@ -346,8 +396,7 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
             const deltaY = coords.y - resizeStart.y;
             const id = Array.from(selectedIds)[0];
 
-            // Simple resize logic - always resize from bottom-right
-            onShapeUpdate(id, {
+            handleShapeUpdate(id, {
                 width: Math.max(20, resizeStart.width + deltaX),
                 height: Math.max(20, resizeStart.height + deltaY),
             });
@@ -358,19 +407,17 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
             const deltaX = coords.x - dragStart.x;
             const deltaY = coords.y - dragStart.y;
 
-            // Update all dragged shapes
             draggedShapes.forEach((initialPos, id) => {
-                onShapeUpdate(id, {
+                handleShapeUpdate(id, {
                     x: initialPos.x + deltaX,
                     y: initialPos.y + deltaY,
                 });
             });
             return;
         }
-    }, [isDragging, isPanning, isSelecting, isResizing, draggedShapes, dragStart, selectionBox, resizeStart, selectedIds, getCanvasCoordinates, onShapeUpdate, onPanChange, onSelectionBoxUpdate, getHandleAt]);
+    }, [isDragging, isPanning, isSelecting, isResizing, draggedShapes, dragStart, selectionBox, resizeStart, selectedIds, getCanvasCoordinates, handleShapeUpdate, onPanChange, onSelectionBoxUpdate, getHandleAt]);
 
     const handleMouseUp = useCallback((e: React.MouseEvent) => {
-        // Handle connection completion on mouse up if we're connecting
         if (isConnecting && connectionStart) {
             const coords = getCanvasCoordinates(e.clientX, e.clientY);
             const handle = getHandleAt(coords.x, coords.y);
@@ -384,7 +431,6 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                 };
                 onConnectionComplete(connectionPoint);
             } else {
-                // Check if we're over a shape (not just a handle)
                 const shape = getShapeAt(coords.x, coords.y);
                 if (shape && shape.id !== connectionStart.shapeId) {
                     const connectionPoint = getConnectionPoint(shape, coords.x, coords.y);
@@ -431,17 +477,22 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
         if (clickedShape) {
             setIsEditingText(true);
             setEditText(clickedShape.text);
+            setEditingShapeId(clickedShape.id);
         }
     }, [selectedTool, getCanvasCoordinates, getShapeAt]);
 
-    const handleTextSubmit = useCallback(() => {
-        if (selectedIds.size === 1) {
-            const id = Array.from(selectedIds)[0];
-            onShapeUpdate(id, { text: editText });
+    const handleTextChange = useCallback((newText: string) => {
+        setEditText(newText);
+        if (editingShapeId) {
+            handleShapeUpdate(editingShapeId, { text: newText });
         }
+    }, [editingShapeId, handleShapeUpdate]);
+
+    const handleTextSubmit = useCallback(() => {
         setIsEditingText(false);
         setEditText('');
-    }, [selectedIds, editText, onShapeUpdate]);
+        setEditingShapeId(null);
+    }, []);
 
     const handleConnectionStart = useCallback((handle: ConnectionHandle) => {
         const tool = getToolById('line-arrow');
@@ -454,13 +505,12 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
             };
             onConnectionStart(connectionPoint, tool);
         }
-    }, [onConnectionStart]);
+    }, [onConnectionStart, getToolById]);
 
-    const selectedShape = shapes.find(s => selectedIds.has(s.id));
+    const selectedShape = shapes.find(s => editingShapeId === s.id);
 
     return (
         <div className="relative w-full h-full overflow-hidden bg-white">
-            {/* Grid Background */}
             {showGrid && (
                 <div
                     className="absolute inset-0 opacity-50"
@@ -475,7 +525,6 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                 />
             )}
 
-            {/* Main Canvas Container */}
             <div
                 ref={containerRef}
                 className="relative w-full h-full"
@@ -493,7 +542,6 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                                         selectedTool === 'select' ? 'default' : 'crosshair'
                 }}
             >
-                {/* Shapes Layer */}
                 <div
                     className="absolute inset-0"
                     style={{
@@ -509,10 +557,10 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                                 onDoubleClick={() => {
                                     setIsEditingText(true);
                                     setEditText(shape.text);
+                                    setEditingShapeId(shape.id);
                                 }}
                             />
 
-                            {/* Connection Handles */}
                             <ConnectionHandles
                                 shape={shape}
                                 isSelected={selectedIds.has(shape.id)}
@@ -523,7 +571,6 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                                 zoom={zoom}
                             />
 
-                            {/* Resize Handles */}
                             {selectedIds.has(shape.id) && selectedIds.size === 1 && (
                                 <>
                                     {['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'].map(position => (
@@ -548,10 +595,9 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                         </div>
                     ))}
 
-                    {/* Selection Box */}
                     {selectionBox && (
                         <div
-                            className="absolute border-2 border-blue-400 z-50  pointer-events-none"
+                            className="absolute border-2 border-blue-400 bg-opacity-10 pointer-events-none"
                             style={{
                                 left: Math.min(selectionBox.startX, selectionBox.endX),
                                 top: Math.min(selectionBox.startY, selectionBox.endY),
@@ -562,7 +608,6 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                     )}
                 </div>
 
-                {/* Connections Layer */}
                 <ConnectionLayer
                     connections={connections}
                     shapes={shapes}
@@ -574,11 +619,10 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                 />
             </div>
 
-            {/* Text Editing Overlay */}
             {isEditingText && selectedShape && (
                 <textarea
                     value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
+                    onChange={(e) => handleTextChange(e.target.value)}
                     onBlur={handleTextSubmit}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -587,6 +631,7 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                         }
                         if (e.key === 'Escape') {
                             setIsEditingText(false);
+                            setEditingShapeId(null);
                         }
                     }}
                     autoFocus
@@ -605,4 +650,5 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     );
 });
 
+console.log("Canvas: ", Canvas)
 Canvas.displayName = 'Canvas';

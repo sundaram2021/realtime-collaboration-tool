@@ -30,8 +30,8 @@ export const useConnections = () => {
       endArrow: connectionTool.id.includes('arrow'),
       color: '#000000',
       width: 2,
-      start: connectionStart,
-      end: endPoint,
+      end: undefined,
+      start: undefined
     };
 
     setConnections(prev => [...prev, connection]);

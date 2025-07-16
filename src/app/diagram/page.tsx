@@ -2,14 +2,15 @@ import { Suspense } from 'react';
 import Loading from '@/components/loading';
 import DiagramContent from '@/components/diagram/diagram-content';
 
-export default function DiagramPage({
-    searchParams,
-}: {
-    params: { [key: string]: string | string[] | undefined };
-    searchParams: { [key: string]: string | string[] | undefined };
-}) {
-    const diagramId = searchParams.id as string;
-    const permission = searchParams.permission as 'view' | 'edit';
+interface PageProps {
+    params: Promise<{ [key: string]: string | string[] | undefined }>;
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function DiagramPage({ searchParams }: PageProps) {
+    const resolvedSearchParams = await searchParams;
+    const diagramId = resolvedSearchParams.id as string;
+    const permission = resolvedSearchParams.permission as 'view' | 'edit';
 
     return (
         <Suspense fallback={<Loading />}>

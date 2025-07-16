@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Toolbar } from './diagram/toolbar';
 import { ShapePanel } from './diagram/shape-panel';
 import { StylePanel } from './diagram/style-panel';
@@ -23,16 +23,12 @@ import { Session } from '@supabase/supabase-js';
 
 const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', initialSession: Session }> = ({ diagramId, permission, initialSession }) => {
     const canvasRef = useRef<HTMLDivElement>(null);
-    // Initialize state with the passed session
     const [session] = useState(initialSession);
     const { presentUsers } = usePresence(diagramId);
     const { toast } = useToast();
     const { diagram, isLoadingDiagram, updateDiagram } = useDiagrams(diagramId);
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
-    // console.log("presence", presence)
-
-    // Core state management
     const { shapes, setShapes, addShape, updateShape, addShapes } = useShapes();
     const {
         selectedIds,
@@ -62,10 +58,8 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
     }, [setShapes, setConnections]);
 
     const { saveState, undo, redo, canUndo, canRedo } = useHistory(restoreState);
-
     const { copyToClipboard, pasteFromClipboard, hasClipboardData } = useClipboard();
 
-    // UI state
     const [shareUrl, setShareUrl] = useState('');
     const [selectedTool, setSelectedTool] = useState<string>('select');
     const [leftPanelOpen, setLeftPanelOpen] = useState(true);
@@ -77,6 +71,23 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
     const [isTablet, setIsTablet] = useState(false);
     const [mobilePanel, setMobilePanel] = useState<'shapes' | 'styles' | null>(null);
     const [mobileToolsExpanded, setMobileToolsExpanded] = useState(false);
+
+    // The owner of the diagram will always have edit access.
+    // For non-owners, the permission from the URL is respected.
+    const effectivePermission = useMemo(() => {
+        if (isLoadingDiagram || !diagram || !session?.user) {
+            return 'view'; // Default to view while loading
+        }
+
+        // Owner always has edit permission
+        if (diagram.user_id === session.user.id) {
+            return 'edit';
+        }
+
+        // For non-owners, the permission from the URL is respected.
+        return permission;
+    }, [diagram, session?.user, isLoadingDiagram, permission]);
+
 
     useEffect(() => {
         if (diagram) {
@@ -102,7 +113,8 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
     }, [diagramId, setShapes, setConnections]);
 
     useEffect(() => {
-        if (diagramId && (shapes.length > 0 || connections.length > 0) && permission === 'edit') {
+        // Use `effectivePermission` to control update/broadcast rights.
+        if (diagramId && (shapes.length > 0 || connections.length > 0) && effectivePermission === 'edit') {
             const diagramData = {
                 shapes,
                 connections,
@@ -124,7 +136,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
 
             return () => clearTimeout(timeoutId);
         }
-    }, [shapes, connections, diagramId, updateDiagram, permission]);
+    }, [shapes, connections, diagramId, updateDiagram, effectivePermission]);
 
     useEffect(() => {
         const checkScreenSize = () => {
@@ -155,12 +167,12 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
     }, [clearSelection, isConnecting, cancelConnection, isMobile]);
 
     const handleShapeCreate = useCallback((tool: Tool, x: number, y: number) => {
-        if (permission === 'edit') {
+        if (effectivePermission === 'edit') {
             const shape = addShape(tool, x, y);
             selectShape(shape.id);
             setSelectedTool('select');
         }
-    }, [addShape, selectShape, permission]);
+    }, [addShape, selectShape, effectivePermission]);
 
     const handleShapeSelect = useCallback((id: string | null, multiSelect = false) => {
         if (id === null) {
@@ -175,13 +187,13 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
     }, [selectShapes]);
 
     const handleShapeUpdate = useCallback((id: string, updates: Partial<Shape>) => {
-        if (permission === 'edit') {
+        if (effectivePermission === 'edit') {
             updateShape(id, updates);
         }
-    }, [updateShape, permission]);
+    }, [updateShape, effectivePermission]);
 
     const handleShapeDelete = useCallback(() => {
-        if (selectedIds.size > 0 && permission === 'edit') {
+        if (selectedIds.size > 0 && effectivePermission === 'edit') {
             const newShapes = shapes.filter(shape => !selectedIds.has(shape.id));
             const newConnections = connections.filter(
                 conn => !selectedIds.has(conn.startShapeId) && !selectedIds.has(conn.endShapeId)
@@ -190,7 +202,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
             setConnections(newConnections);
             clearSelection();
         }
-    }, [selectedIds, shapes, connections, setShapes, setConnections, clearSelection, permission]);
+    }, [selectedIds, shapes, connections, setShapes, setConnections, clearSelection, effectivePermission]);
 
     const handleCopy = useCallback(() => {
         if (selectedShapes.length > 0) {
@@ -202,13 +214,13 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
     }, [selectedShapes, selectedIds, connections, copyToClipboard]);
 
     const handlePaste = useCallback(() => {
-        if (hasClipboardData && permission === 'edit') {
+        if (hasClipboardData && effectivePermission === 'edit') {
             const { shapes: newShapes, connections: newConnections } = pasteFromClipboard();
             addShapes(newShapes);
             addConnections(newConnections);
             selectShapes(newShapes.map(s => s.id));
         }
-    }, [hasClipboardData, pasteFromClipboard, addShapes, addConnections, selectShapes, permission]);
+    }, [hasClipboardData, pasteFromClipboard, addShapes, addConnections, selectShapes, effectivePermission]);
 
     const handleSelectAll = useCallback(() => {
         selectAll();
@@ -234,7 +246,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
         }
 
         try {
-            const canvas = await html2canvas(canvasRef.current);
+            const canvas = await html2canvas(canvasRef.current, { backgroundColor: '#ffffff' });
             canvas.toBlob(async (blob) => {
                 if (!blob) {
                     toast({
@@ -287,26 +299,26 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
 
 
     const handleConnectionStart = useCallback((point: ConnectionPoint, tool: Tool) => {
-        if (permission === 'edit') {
+        if (effectivePermission === 'edit') {
             startConnection(point, tool);
         }
-    }, [startConnection, permission]);
+    }, [startConnection, effectivePermission]);
 
     const handleConnectionComplete = useCallback((endPoint: ConnectionPoint) => {
-        if (permission === 'edit') {
+        if (effectivePermission === 'edit') {
             completeConnection(endPoint);
         }
-    }, [completeConnection, permission]);
+    }, [completeConnection, effectivePermission]);
 
     const handleConnectionCancel = useCallback(() => {
         cancelConnection();
     }, [cancelConnection]);
 
     const handleConnectionUpdate = useCallback((id: string, updates: Partial<any>) => {
-        if (permission === 'edit') {
+        if (effectivePermission === 'edit') {
             updateConnection(id, updates);
         }
-    }, [updateConnection, permission]);
+    }, [updateConnection, effectivePermission]);
 
     const handleSelectionBoxUpdate = useCallback((box: SelectionBox | null) => {
     }, []);
@@ -321,7 +333,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
             return;
         }
 
-        html2canvas(canvasRef.current).then((canvas) => {
+        html2canvas(canvasRef.current, { backgroundColor: '#ffffff' }).then((canvas) => {
             const link = document.createElement('a');
             link.download = `diagram-${new Date().toISOString()}.png`;
             link.href = canvas.toDataURL('image/png');
@@ -439,7 +451,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
         );
     };
 
-    // Updated header sections for all layouts
     const PresenceIndicators = ({ presentUsers }: { presentUsers: any[] }) => {
         return (
             <div className="flex items-center space-x-3">

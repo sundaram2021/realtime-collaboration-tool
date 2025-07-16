@@ -12,24 +12,31 @@ export default function DiagramPage() {
     const permission = searchParams.get('permission') as 'view' | 'edit' | null;
     const { session, isLoadingSession } = useSupabaseAuth();
 
-    // Handle redirect in useEffect to avoid setState during render
+    // Redirect to login if the user is not authenticated and the session is loaded.
     useEffect(() => {
         if (!isLoadingSession && !session) {
-            router.push('/login')
+            router.push('/login');
         }
     }, [isLoadingSession, session, router]);
 
-    // Show loading while session is being checked
-    if (isLoadingSession) {
+    // Show a loading screen while the session is being verified.
+    if (isLoadingSession || !session) {
         return <Loading />;
     }
 
-    // Show loading while redirecting to login
-    if (!session) {
+    // Ensure diagramId and permission are present before rendering the editor.
+    if (!diagramId || !permission) {
+        // You can redirect to a 404 page or the homepage
+        router.push('/');
         return <Loading />;
     }
 
+    // Render the editor only when the session is confirmed.
     return (
-        <DiagramEditor diagramId={diagramId as string} permission={permission || 'view'} />
+        <DiagramEditor
+            diagramId={diagramId}
+            permission={permission}
+            initialSession={session} // Pass the session as a prop
+        />
     );
 }

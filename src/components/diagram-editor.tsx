@@ -11,7 +11,6 @@ import { useHistory } from '@/hooks/use-history';
 import { useConnections } from '@/hooks/use-connection';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { Shape, Tool, Connection, ConnectionPoint, SelectionBox, HistoryEntry } from './diagram/types';
-import { useSupabaseAuth } from '@/hooks/use-supabase-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useDiagrams } from "@/hooks/use-diagrams";
 import { supabase } from '@/lib/supabaseClient';
@@ -19,14 +18,19 @@ import { ShareDialog } from './diagram/share-dialog';
 import html2canvas from 'html2canvas';
 import { usePresence } from '@/hooks/use-presence';
 import Image from 'next/image';
+import Loading from './loading';
+import { Session } from '@supabase/supabase-js';
 
-const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }> = ({ diagramId, permission }) => {
+const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', initialSession: Session }> = ({ diagramId, permission, initialSession }) => {
     const canvasRef = useRef<HTMLDivElement>(null);
-    const { session, signInWithGoogle } = useSupabaseAuth();
-    const { presence } = usePresence(diagramId, session?.user.id || '');
+    // Initialize state with the passed session
+    const [session] = useState(initialSession);
+    const { presence, isLoadingPresence } = usePresence(diagramId, session?.user.id);
     const { toast } = useToast();
-    const { diagram, updateDiagram } = useDiagrams(diagramId);
+    const { diagram, isLoadingDiagram, updateDiagram } = useDiagrams(diagramId);
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+
+    console.log("presence", presence)
 
     // Core state management
     const { shapes, setShapes, addShape, updateShape, addShapes } = useShapes();
@@ -113,7 +117,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                 });
             };
 
-            // Debounce the update to avoid excessive database writes and broadcasts
             const timeoutId = setTimeout(() => {
                 updateDiagram({ id: diagramId, data: diagramData });
                 broadcastChanges();
@@ -123,7 +126,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
         }
     }, [shapes, connections, diagramId, updateDiagram, permission]);
 
-    // Check screen size
     useEffect(() => {
         const checkScreenSize = () => {
             const width = window.innerWidth;
@@ -135,7 +137,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
         return () => window.removeEventListener('resize', checkScreenSize);
     }, []);
 
-    // Save state when shapes or connections change
     useEffect(() => {
         saveState({ shapes, connections });
     }, [shapes, connections, saveState]);
@@ -220,7 +221,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                 description: "You need to re-authenticate with Google Drive.",
                 variant: "destructive",
             });
-            signInWithGoogle();
             return;
         }
 
@@ -283,7 +283,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                 variant: "destructive",
             });
         }
-    }, [session, toast, signInWithGoogle]);
+    }, [session, toast]);
 
 
     const handleConnectionStart = useCallback((point: ConnectionPoint, tool: Tool) => {
@@ -309,7 +309,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
     }, [updateConnection, permission]);
 
     const handleSelectionBoxUpdate = useCallback((box: SelectionBox | null) => {
-        // let's just ignore this function for now as this will already be handle in canvas component ....will find something later
     }, []);
 
     const handleDownload = useCallback(() => {
@@ -381,7 +380,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
-            const url = new URL(window.location.origin + "/diagramm");
+            const url = new URL(window.location.origin + "/diagram");
             url.searchParams.set('id', diagramId);
             url.searchParams.set('permission', 'view');
             setShareUrl(url.toString());
@@ -389,30 +388,27 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
     }, [diagramId]);
 
     const renderPresence = (p: any) => {
-        if (!p.full_name) return null;
+        if (!p || !p.user_id || !p.full_name || !p.avatar_url) return null;
 
         return (
             <div key={p.user_id} className="w-8 h-8 rounded-full overflow-hidden" title={p.full_name}>
-                {p.avatar_url ? (
-                    <Image
-                        src={p.avatar_url}
-                        alt={p.full_name}
-                        width={32}
-                        height={32}
-                    />
-                ) : (
-                    <div className="w-full h-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
-                        {p.full_name.charAt(0)}
-                    </div>
-                )}
+                <Image
+                    src={p.avatar_url}
+                    alt={p.full_name}
+                    width={32}
+                    height={32}
+                />
             </div>
         );
     };
 
+    if (isLoadingDiagram || isLoadingPresence) {
+        return <Loading />;
+    }
+
     if (isMobile) {
         return (
             <div className="h-screen bg-gray-50 flex flex-col">
-                {/* Mobile Header */}
                 <header className="bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between shadow-sm">
                     <h1 className="text-base font-semibold text-gray-800">Diagram Creator</h1>
                     <div className="flex items-center space-x-2">
@@ -420,7 +416,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                     </div>
                 </header>
 
-                {/* Canvas area */}
                 <div className="flex-1 relative">
                     <Canvas
                         ref={canvasRef}
@@ -446,9 +441,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                     />
                 </div>
 
-                {/* Mobile Bottom Toolbar */}
                 <div className="bg-white border-t border-gray-200 shadow-lg">
-                    {/* Quick Actions */}
                     <div className="px-3 py-2 flex items-center justify-between border-b border-gray-100">
                         <div className="flex items-center space-x-2">
                             <button
@@ -499,7 +492,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                         </div>
                     </div>
 
-                    {/* Expanded Tools */}
                     {mobileToolsExpanded && (
                         <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
                             <div className="grid grid-cols-6 gap-2">
@@ -555,7 +547,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                         </div>
                     )}
 
-                    {/* Panel Content */}
                     {mobilePanel && (
                         <div className="max-h-64 overflow-y-auto">
                             {mobilePanel === 'shapes' && (
@@ -583,15 +574,12 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
     if (isTablet) {
         return (
             <div className="h-screen bg-gray-100 flex flex-col">
-                {/* Tablet Header */}
                 <header className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shadow-sm">
                     <h1 className="text-lg font-semibold text-gray-800">Diagram Creator</h1>
                     <div className="flex items-center space-x-2">
                         {presence?.map(renderPresence)}
                     </div>
                 </header>
-
-                {/* Tablet Toolbar */}
                 <Toolbar
                     selectedTool={selectedTool}
                     shareData={{
@@ -620,10 +608,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                     onToggleRightPanel={() => setRightPanelOpen(!rightPanelOpen)}
                     setIsShareDialogOpen={setIsShareDialogOpen}
                 />
-
-                {/* Tablet Main Content */}
                 <div className="flex-1 flex overflow-hidden">
-                    {/* Canvas area */}
                     <div className="flex-1 relative">
                         <Canvas
                             ref={canvasRef}
@@ -648,8 +633,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                             onSelectionBoxUpdate={handleSelectionBoxUpdate}
                         />
                     </div>
-
-                    {/* Right panel - Styles */}
                     {rightPanelOpen && (
                         <div className="w-64 bg-white border-l border-gray-200 shadow-sm">
                             <StylePanel
@@ -662,8 +645,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                         </div>
                     )}
                 </div>
-
-                {/* Bottom Shapes Panel for Tablet */}
                 {leftPanelOpen && (
                     <div className="bg-white border-t border-gray-200 shadow-sm max-h-48">
                         <ShapePanel
@@ -675,13 +656,9 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
             </div>
         );
     }
-
-
-    // Desktop Layout
     return (
         <div className="h-screen bg-gray-100 flex flex-col">
             {isShareDialogOpen && <ShareDialog diagramId={diagramId} onClose={() => setIsShareDialogOpen(false)} />}
-            {/* Header */}
             <header className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shadow-sm">
                 <div className="flex items-center space-x-6">
                     <h1 className="text-xl font-semibold text-gray-800">Diagram Creator</h1>
@@ -696,8 +673,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                     {presence?.map(renderPresence)}
                 </div>
             </header>
-
-            {/* Toolbar */}
             <Toolbar
                 selectedTool={selectedTool}
                 shareData={{
@@ -726,10 +701,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                 onToggleRightPanel={() => setRightPanelOpen(!rightPanelOpen)}
                 setIsShareDialogOpen={setIsShareDialogOpen}
             />
-
-            {/* Main content */}
             <div className="flex-1 flex overflow-hidden">
-                {/* Left panel - Shapes */}
                 {leftPanelOpen && (
                     <div className="w-64 bg-white border-r border-gray-200 shadow-sm">
                         <ShapePanel
@@ -738,8 +710,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                         />
                     </div>
                 )}
-
-                {/* Canvas area */}
                 <div className="flex-1 relative" ref={canvasRef}>
                     <Canvas
                         shapes={shapes}
@@ -763,8 +733,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                         onSelectionBoxUpdate={handleSelectionBoxUpdate}
                     />
                 </div>
-
-                {/* Right panel - Styles */}
                 {rightPanelOpen && (
                     <div className="w-64 bg-white border-l border-gray-200 shadow-sm">
                         <StylePanel

@@ -26,17 +26,15 @@ export default function DiagramPage() {
 
     // Ensure diagramId and permission are present before rendering the editor.
     if (!diagramId || !permission) {
-        // You can redirect to a 404 page or the homepage
         router.push('/');
         return <Loading />;
     }
 
-    // Render the editor only when the session is confirmed.
     return (
         <DiagramEditor
             diagramId={diagramId}
             permission={permission}
-            initialSession={session} // Pass the session as a prop
+            initialSession={session} 
         />
     );
 }

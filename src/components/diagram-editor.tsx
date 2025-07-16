@@ -25,12 +25,12 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
     const canvasRef = useRef<HTMLDivElement>(null);
     // Initialize state with the passed session
     const [session] = useState(initialSession);
-    const { presence, isLoadingPresence } = usePresence(diagramId, session?.user.id);
+    const { presentUsers } = usePresence(diagramId);
     const { toast } = useToast();
     const { diagram, isLoadingDiagram, updateDiagram } = useDiagrams(diagramId);
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
-    console.log("presence", presence)
+    // console.log("presence", presence)
 
     // Core state management
     const { shapes, setShapes, addShape, updateShape, addShapes } = useShapes();
@@ -388,21 +388,84 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
     }, [diagramId]);
 
     const renderPresence = (p: any) => {
-        if (!p || !p.user_id || !p.full_name || !p.avatar_url) return null;
+        console.log("Presence: ", p);
+
+        // Check if presence data exists and has user_metadata
+        if (!p || !p.user_metadata) return null;
+
+        const { user_metadata } = p;
+        const userId = p.id;
+        const fullName = user_metadata.full_name;
+        const avatarUrl = user_metadata.avatar_url;
+        const email = p.email;
+
+        // Ensure we have required fields
+        if (!fullName || !avatarUrl) return null;
 
         return (
-            <div key={p.user_id} className="w-8 h-8 rounded-full overflow-hidden" title={p.full_name}>
-                <Image
-                    src={p.avatar_url}
-                    alt={p.full_name}
-                    width={32}
-                    height={32}
-                />
+            <div key={userId} className="relative group">
+                <div className="relative">
+                    {/* Avatar with border and glow effect */}
+                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-green-400 shadow-lg ring-2 ring-green-300 ring-opacity-50 transition-all duration-300 hover:ring-4 hover:ring-green-200">
+                        <Image
+                            src={avatarUrl}
+                            alt={fullName}
+                            width={40}
+                            height={40}
+                            className="object-cover"
+                        />
+                    </div>
+
+                    {/* Online indicator dot */}
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow-sm">
+                        <div className="w-full h-full bg-green-500 rounded-full animate-pulse"></div>
+                    </div>
+                </div>
+
+                {/* Tooltip on hover */}
+                <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                    <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 shadow-lg whitespace-nowrap">
+                        <div className="font-medium">{fullName}</div>
+                        <div className="text-gray-300 text-xs">{email}</div>
+                        <div className="text-green-400 text-xs flex items-center mt-1">
+                            <div className="w-2 h-2 bg-green-400 rounded-full mr-1 animate-pulse"></div>
+                            Online
+                        </div>
+                        {/* Tooltip arrow */}
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-b-gray-900"></div>
+                    </div>
+                </div>
             </div>
         );
     };
 
-    if (isLoadingDiagram || isLoadingPresence) {
+    // Updated header sections for all layouts
+    const PresenceIndicators = ({ presentUsers }: { presentUsers: any[] }) => {
+        return (
+            <div className="flex items-center space-x-3">
+                {presentUsers?.length > 0 && (
+                    <>
+                        <div className="flex items-center space-x-2">
+                            {presentUsers.slice(0, 4).map(renderPresence)}
+                        </div>
+
+                        {presentUsers.length > 4 && (
+                            <div className="w-10 h-10 rounded-full bg-gray-200 border-2 border-gray-300 flex items-center justify-center text-xs font-medium text-gray-600 shadow-sm">
+                                +{presentUsers.length - 4}
+                            </div>
+                        )}
+
+                        <div className="hidden sm:flex items-center text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
+                            <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                            {presentUsers.length} online
+                        </div>
+                    </>
+                )}
+            </div>
+        );
+    };
+
+    if (isLoadingDiagram) {
         return <Loading />;
     }
 
@@ -411,9 +474,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
             <div className="h-screen bg-gray-50 flex flex-col">
                 <header className="bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between shadow-sm">
                     <h1 className="text-base font-semibold text-gray-800">Diagram Creator</h1>
-                    <div className="flex items-center space-x-2">
-                        {presence?.map(renderPresence)}
-                    </div>
+                    <PresenceIndicators presentUsers={presentUsers} />
                 </header>
 
                 <div className="flex-1 relative">
@@ -576,9 +637,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
             <div className="h-screen bg-gray-100 flex flex-col">
                 <header className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shadow-sm">
                     <h1 className="text-lg font-semibold text-gray-800">Diagram Creator</h1>
-                    <div className="flex items-center space-x-2">
-                        {presence?.map(renderPresence)}
-                    </div>
+                    <PresenceIndicators presentUsers={presentUsers} />
                 </header>
                 <Toolbar
                     selectedTool={selectedTool}
@@ -662,16 +721,8 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
             <header className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shadow-sm">
                 <div className="flex items-center space-x-6">
                     <h1 className="text-xl font-semibold text-gray-800">Diagram Creator</h1>
-                    <nav className="flex space-x-4 text-sm text-gray-600">
-                        <button className="hover:text-gray-800 transition-colors">File</button>
-                        <button className="hover:text-gray-800 transition-colors">Edit</button>
-                        <button className="hover:text-gray-800 transition-colors">View</button>
-                        <button className="hover:text-gray-800 transition-colors">Arrange</button>
-                    </nav>
                 </div>
-                <div className="flex items-center space-x-2">
-                    {presence?.map(renderPresence)}
-                </div>
+                <PresenceIndicators presentUsers={presentUsers} />
             </header>
             <Toolbar
                 selectedTool={selectedTool}

@@ -650,5 +650,4 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     );
 });
 
-console.log("Canvas: ", Canvas)
 Canvas.displayName = 'Canvas';

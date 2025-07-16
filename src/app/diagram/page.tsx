@@ -1,11 +1,13 @@
 'use client'
+
 import { Suspense, useEffect } from 'react';
 import DiagramEditor from "@/components/diagram-editor";
 import Loading from "@/components/loading";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function DiagramPage() {
+// Create a separate component for the search params logic
+function DiagramContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const diagramId = searchParams.get('id')
@@ -31,12 +33,18 @@ export default function DiagramPage() {
     }
 
     return (
-        <Suspense>  
-            <DiagramEditor
-                diagramId={diagramId}
-                permission={permission}
-                initialSession={session}
-            />
+        <DiagramEditor
+            diagramId={diagramId}
+            permission={permission}
+            initialSession={session}
+        />
+    );
+}
+
+export default function DiagramPage() {
+    return (
+        <Suspense fallback={<Loading />}>
+            <DiagramContent />
         </Suspense>
     );
 }

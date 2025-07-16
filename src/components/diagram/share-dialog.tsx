@@ -12,8 +12,8 @@ interface ShareDialogProps {
 
 export const ShareDialog: React.FC<ShareDialogProps> = ({ diagramId, onClose }) => {
     const { toast } = useToast();
-    const readOnlyLink = `${window.location.origin}/diagram/?id=${diagramId}&permission=view`;
-    const editableLink = `${window.location.origin}/diagram/?id=${diagramId}&permission=edit`;
+    const readOnlyLink = `${window.location.origin}/diagram/?id=${diagramId}&permission=${btoa('view')}`;
+    const editableLink = `${window.location.origin}/diagram/?id=${diagramId}&permission=${btoa('edit')}`;
 
     const copyToClipboard = (link: string, type: string) => {
         navigator.clipboard.writeText(link).then(() => {

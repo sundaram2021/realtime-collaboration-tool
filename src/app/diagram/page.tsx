@@ -10,7 +10,17 @@ interface PageProps {
 export default async function DiagramPage({ searchParams }: PageProps) {
     const resolvedSearchParams = await searchParams;
     const diagramId = resolvedSearchParams.id as string;
-    const permission = resolvedSearchParams.permission as 'view' | 'edit';
+    let permission: 'view' | 'edit' = 'view';
+    try {
+        const decodedPermission = atob(resolvedSearchParams.permission as string);
+        if (decodedPermission === 'edit' || decodedPermission === 'view') {
+            permission = decodedPermission;
+        }
+    } catch (error) {
+        // Fallback to view permission if decoding fails or value is invalid
+        permission = 'view';
+    }
+
 
     return (
         <Suspense fallback={<Loading />}>

@@ -49,7 +49,7 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     onConnectionCancel,
     onConnectionUpdate,
     onSelectionBoxUpdate,
-}) => {
+}, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
@@ -510,7 +510,23 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     const selectedShape = shapes.find(s => editingShapeId === s.id);
 
     return (
-        <div className="relative w-full h-full overflow-hidden bg-white">
+        <div
+            ref={ref}
+            className="relative w-full h-full overflow-hidden bg-white"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onDoubleClick={handleDoubleClick}
+            style={{
+                cursor: isDragging ? 'grabbing' :
+                    isPanning ? 'grabbing' :
+                        isConnecting ? 'crosshair' :
+                            isResizing ? 'nw-resize' :
+                                hoveredHandle ? 'pointer' :
+                                    selectedTool === 'select' ? 'default' : 'crosshair'
+            }}
+        >
             {showGrid && (
                 <div
                     className="absolute inset-0 opacity-50"
@@ -527,97 +543,80 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
 
             <div
                 ref={containerRef}
-                className="relative w-full h-full"
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-                onDoubleClick={handleDoubleClick}
+                className="absolute inset-0"
                 style={{
-                    cursor: isDragging ? 'grabbing' :
-                        isPanning ? 'grabbing' :
-                            isConnecting ? 'crosshair' :
-                                isResizing ? 'nw-resize' :
-                                    hoveredHandle ? 'pointer' :
-                                        selectedTool === 'select' ? 'default' : 'crosshair'
+                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                    transformOrigin: '0 0'
                 }}
             >
-                <div
-                    className="absolute inset-0"
-                    style={{
-                        transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                        transformOrigin: '0 0'
-                    }}
-                >
-                    {shapes.map(shape => (
-                        <div key={shape.id} className="relative">
-                            <ShapeRenderer
-                                shape={shape}
-                                isSelected={selectedIds.has(shape.id)}
-                                onDoubleClick={() => {
-                                    setIsEditingText(true);
-                                    setEditText(shape.text);
-                                    setEditingShapeId(shape.id);
-                                }}
-                            />
-
-                            <ConnectionHandles
-                                shape={shape}
-                                isSelected={selectedIds.has(shape.id)}
-                                isConnecting={isConnecting}
-                                hoveredHandle={hoveredHandle}
-                                onConnectionStart={handleConnectionStart}
-                                onHandleHover={setHoveredHandle}
-                                zoom={zoom}
-                            />
-
-                            {selectedIds.has(shape.id) && selectedIds.size === 1 && (
-                                <>
-                                    {['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'].map(position => (
-                                        <div
-                                            key={position}
-                                            className="absolute bg-blue-500 border border-white cursor-nw-resize"
-                                            style={{
-                                                width: 8 / zoom,
-                                                height: 8 / zoom,
-                                                left: position.includes('w') ? shape.x - 4 / zoom :
-                                                    position.includes('e') ? shape.x + shape.width - 4 / zoom :
-                                                        shape.x + shape.width / 2 - 4 / zoom,
-                                                top: position.includes('n') ? shape.y - 4 / zoom :
-                                                    position.includes('s') ? shape.y + shape.height - 4 / zoom :
-                                                        shape.y + shape.height / 2 - 4 / zoom,
-                                                zIndex: 1001,
-                                            }}
-                                        />
-                                    ))}
-                                </>
-                            )}
-                        </div>
-                    ))}
-
-                    {selectionBox && (
-                        <div
-                            className="absolute border-2 border-blue-400 bg-opacity-10 pointer-events-none"
-                            style={{
-                                left: Math.min(selectionBox.startX, selectionBox.endX),
-                                top: Math.min(selectionBox.startY, selectionBox.endY),
-                                width: Math.abs(selectionBox.endX - selectionBox.startX),
-                                height: Math.abs(selectionBox.endY - selectionBox.startY),
+                {shapes.map(shape => (
+                    <div key={shape.id} className="relative">
+                        <ShapeRenderer
+                            shape={shape}
+                            isSelected={selectedIds.has(shape.id)}
+                            onDoubleClick={() => {
+                                setIsEditingText(true);
+                                setEditText(shape.text);
+                                setEditingShapeId(shape.id);
                             }}
                         />
-                    )}
-                </div>
 
-                <ConnectionLayer
-                    connections={connections}
-                    shapes={shapes}
-                    isConnecting={isConnecting}
-                    connectionStart={connectionStart}
-                    mousePos={mousePos}
-                    zoom={zoom}
-                    pan={pan}
-                />
+                        <ConnectionHandles
+                            shape={shape}
+                            isSelected={selectedIds.has(shape.id)}
+                            isConnecting={isConnecting}
+                            hoveredHandle={hoveredHandle}
+                            onConnectionStart={handleConnectionStart}
+                            onHandleHover={setHoveredHandle}
+                            zoom={zoom}
+                        />
+
+                        {selectedIds.has(shape.id) && selectedIds.size === 1 && (
+                            <>
+                                {['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'].map(position => (
+                                    <div
+                                        key={position}
+                                        className="absolute bg-blue-500 border border-white cursor-nw-resize"
+                                        style={{
+                                            width: 8 / zoom,
+                                            height: 8 / zoom,
+                                            left: position.includes('w') ? shape.x - 4 / zoom :
+                                                position.includes('e') ? shape.x + shape.width - 4 / zoom :
+                                                    shape.x + shape.width / 2 - 4 / zoom,
+                                            top: position.includes('n') ? shape.y - 4 / zoom :
+                                                position.includes('s') ? shape.y + shape.height - 4 / zoom :
+                                                    shape.y + shape.height / 2 - 4 / zoom,
+                                            zIndex: 1001,
+                                        }}
+                                    />
+                                ))}
+                            </>
+                        )}
+                    </div>
+                ))}
+
+                {selectionBox && (
+                    <div
+                        className="absolute border-2 border-blue-400 bg-opacity-10 pointer-events-none"
+                        style={{
+                            left: Math.min(selectionBox.startX, selectionBox.endX),
+                            top: Math.min(selectionBox.startY, selectionBox.endY),
+                            width: Math.abs(selectionBox.endX - selectionBox.startX),
+                            height: Math.abs(selectionBox.endY - selectionBox.startY),
+                        }}
+                    />
+                )}
             </div>
+
+            <ConnectionLayer
+                connections={connections}
+                shapes={shapes}
+                isConnecting={isConnecting}
+                connectionStart={connectionStart}
+                mousePos={mousePos}
+                zoom={zoom}
+                pan={pan}
+            />
 
             {isEditingText && selectedShape && (
                 <textarea

@@ -394,10 +394,11 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
         if (typeof window !== 'undefined') {
             const url = new URL(window.location.origin + "/diagram");
             url.searchParams.set('id', diagramId);
-            url.searchParams.set('permission', 'view');
+            url.searchParams.set('permission', btoa('view'));
             setShareUrl(url.toString());
         }
     }, [diagramId]);
+
 
     const renderPresence = (p: any) => {
         console.log("Presence: ", p);
@@ -762,8 +763,9 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
                         />
                     </div>
                 )}
-                <div className="flex-1 relative" ref={canvasRef}>
+                <div className="flex-1 relative">
                     <Canvas
+                        ref={canvasRef}
                         shapes={shapes}
                         connections={connections}
                         selectedIds={selectedIds}

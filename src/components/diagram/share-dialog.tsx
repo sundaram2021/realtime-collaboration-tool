@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { useDiagrams } from '@/hooks/use-diagrams';
 
 interface ShareDialogProps {
     diagramId: string;
@@ -14,8 +12,6 @@ interface ShareDialogProps {
 
 export const ShareDialog: React.FC<ShareDialogProps> = ({ diagramId, onClose }) => {
     const { toast } = useToast();
-    const { diagram } = useDiagrams(diagramId);
-
     const readOnlyLink = `${window.location.origin}/diagram/?id=${diagramId}&permission=view`;
     const editableLink = `${window.location.origin}/diagram/?id=${diagramId}&permission=edit`;
 

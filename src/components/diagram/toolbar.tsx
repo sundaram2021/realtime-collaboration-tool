@@ -1,21 +1,13 @@
 import React from 'react';
-import { RWebShare } from "react-web-share";
 import {
     MousePointer, ZoomIn, ZoomOut, Undo, Redo, Trash2,
-    Copy, Download, Upload, Home, Grid, Eye, ChevronRight,
+    Copy, Download, Upload, Home, ChevronRight,
     Square, Clipboard, Save, Share2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-interface ShareData {
-    title: string;
-    text: string;
-    url: string;
-}
-
 interface ToolbarProps {
     selectedTool: string;
-    shareData: ShareData;
     onToolSelect: (tool: string) => void;
     zoom: number;
     onZoomChange: (zoom: number) => void;
@@ -38,9 +30,9 @@ interface ToolbarProps {
     setIsShareDialogOpen: (isOpen: boolean) => void;
 }
 
+// tool bar
 export const Toolbar: React.FC<ToolbarProps> = React.memo(({
     selectedTool,
-    shareData,
     onToolSelect,
     zoom,
     onZoomChange,

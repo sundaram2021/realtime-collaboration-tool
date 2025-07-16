@@ -11,6 +11,7 @@ interface ConnectionLayerProps {
     pan: { x: number; y: number };
 }
 
+// connection layer
 export const ConnectionLayer: React.FC<ConnectionLayerProps> = React.memo(({
     connections,
     shapes,

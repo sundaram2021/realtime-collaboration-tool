@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState, forwardRef } from 'react';
+import React, { useRef, useCallback, useState, forwardRef } from 'react';
 import { Shape, Tool, Connection, ConnectionPoint, SelectionBox, ConnectionHandle } from './types';
 import { ConnectionLayer } from './connection-layer';
 import { ConnectionHandles } from './connection-handles';
@@ -49,12 +49,12 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     onConnectionCancel,
     onConnectionUpdate,
     onSelectionBoxUpdate,
-}, ref) => {
+}) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const [_dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [isEditingText, setIsEditingText] = useState(false);

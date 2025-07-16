@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     Square, Circle, Triangle, Diamond, Hexagon, Star, Pentagon,
     ArrowRight, Type, Search, ChevronDown, Minus, MoreHorizontal,
-    ArrowRightLeft, ArrowUpDown, Zap, Heart, Hash
+    ArrowRightLeft, ArrowUpDown, Zap, Heart
 } from 'lucide-react';
 import { Tool } from './types';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ interface ShapePanelProps {
     onToolSelect: (toolId: string) => void;
 }
 
+//  shape panel
 export const ShapePanel: React.FC<ShapePanelProps> = React.memo(({
     selectedTool,
     onToolSelect,

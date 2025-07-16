@@ -21,6 +21,7 @@ const getConnectionHandles = (shape: Shape): ConnectionHandle[] => {
     ];
 };
 
+// connection handles
 export const ConnectionHandles: React.FC<ConnectionHandlesProps> = React.memo(({
     shape,
     isSelected,
@@ -38,7 +39,7 @@ export const ConnectionHandles: React.FC<ConnectionHandlesProps> = React.memo(({
 
     return (
         <>
-            {handles.map((handle, index) => {
+            {handles.map((handle, _index) => {
                 const isHovered = hoveredHandle?.shapeId === handle.shapeId &&
                     hoveredHandle?.side === handle.side;
 

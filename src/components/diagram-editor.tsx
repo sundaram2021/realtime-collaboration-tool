@@ -641,11 +641,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
                 </header>
                 <Toolbar
                     selectedTool={selectedTool}
-                    shareData={{
-                        title: 'Diagram-' + diagramId,
-                        text: 'Check out this diagram!',
-                        url: shareUrl,
-                    }}
                     onToolSelect={handleToolSelect}
                     zoom={zoom}
                     onZoomChange={setZoom}
@@ -726,11 +721,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
             </header>
             <Toolbar
                 selectedTool={selectedTool}
-                shareData={{
-                    title: "Diagram-" + diagramId,
-                    text: "Diagram from Diagram Creator",
-                    url: shareUrl
-                }}
                 onToolSelect={handleToolSelect}
                 zoom={zoom}
                 onZoomChange={setZoom}

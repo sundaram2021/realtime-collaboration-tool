@@ -13,7 +13,7 @@ interface StylePanelProps {
     onShowGridChange: (show: boolean) => void;
 }
 
-export const StylePanel: React.FC<StylePanelProps> = ({
+export const StylePanel: React.FC<StylePanelProps> = React.memo(({
     selectedShape,
     selectedShapes,
     onShapeUpdate,
@@ -230,4 +230,4 @@ export const StylePanel: React.FC<StylePanelProps> = ({
             </div>
         </div>
     );
-};
+});

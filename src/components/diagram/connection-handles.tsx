@@ -21,7 +21,7 @@ const getConnectionHandles = (shape: Shape): ConnectionHandle[] => {
     ];
 };
 
-export const ConnectionHandles: React.FC<ConnectionHandlesProps> = ({
+export const ConnectionHandles: React.FC<ConnectionHandlesProps> = React.memo(({
     shape,
     isSelected,
     isConnecting,
@@ -77,4 +77,4 @@ export const ConnectionHandles: React.FC<ConnectionHandlesProps> = ({
             })}
         </>
     );
-};
+});

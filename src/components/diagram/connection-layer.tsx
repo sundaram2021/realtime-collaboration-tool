@@ -11,7 +11,7 @@ interface ConnectionLayerProps {
     pan: { x: number; y: number };
 }
 
-export const ConnectionLayer: React.FC<ConnectionLayerProps> = ({
+export const ConnectionLayer: React.FC<ConnectionLayerProps> = React.memo(({
     connections,
     shapes,
     isConnecting,
@@ -132,4 +132,4 @@ export const ConnectionLayer: React.FC<ConnectionLayerProps> = ({
             )}
         </svg>
     );
-};
+});

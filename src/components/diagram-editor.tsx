@@ -17,10 +17,13 @@ import { useDiagrams } from "@/hooks/use-diagrams";
 import { supabase } from '@/lib/supabaseClient';
 import { ShareDialog } from './diagram/share-dialog';
 import html2canvas from 'html2canvas';
+import { usePresence } from '@/hooks/use-presence';
+import Image from 'next/image';
 
 const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }> = ({ diagramId, permission }) => {
     const canvasRef = useRef<HTMLDivElement>(null);
     const { session, signInWithGoogle } = useSupabaseAuth();
+    const { presence } = usePresence(diagramId, session?.user.id || '');
     const { toast } = useToast();
     const { diagram, updateDiagram } = useDiagrams(diagramId);
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
@@ -378,14 +381,20 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
         }
     }, [diagramId]);
 
-     if (isMobile) {
+    if (isMobile) {
         return (
             <div className="h-screen bg-gray-50 flex flex-col">
                 {/* Mobile Header */}
                 <header className="bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between shadow-sm">
                     <h1 className="text-base font-semibold text-gray-800">Diagram Creator</h1>
-                    <div className="bg-orange-500 text-white px-2 py-1 rounded text-xs font-medium">
-                        Unsaved
+                    <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2">
+                            {presence?.map(p => (
+                                <div key={p.user_id} className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold" title={p.users.user_metadata.full_name}>
+                                    {p.users.user_metadata.full_name.charAt(0)}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </header>
 
@@ -555,8 +564,12 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                 {/* Tablet Header */}
                 <header className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shadow-sm">
                     <h1 className="text-lg font-semibold text-gray-800">Diagram Creator</h1>
-                    <div className="bg-orange-500 text-white px-3 py-1 rounded text-sm">
-                        Unsaved changes
+                    <div className="flex items-center space-x-2">
+                        {presence?.map(p => (
+                            <div key={p.user_id} className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold" title={p.users.user_metadata.full_name}>
+                                {p.users.user_metadata.full_name.charAt(0)}
+                            </div>
+                        ))}
                     </div>
                 </header>
 
@@ -564,7 +577,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                 <Toolbar
                     selectedTool={selectedTool}
                     shareData={{
-                        title: 'Diagram-'+diagramId,
+                        title: 'Diagram-' + diagramId,
                         text: 'Check out this diagram!',
                         url: shareUrl,
                     }}
@@ -661,9 +674,20 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                         <button className="hover:text-gray-800 transition-colors">Arrange</button>
                     </nav>
                 </div>
-                <div className="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600 transition-colors cursor-pointer">
-                    Unsaved changes. Click here to save.
+                <div className="flex items-center space-x-2">
+        {presence?.map(p => (
+            p.users && (
+                <div key={p.user_id} className="w-8 h-8 rounded-full overflow-hidden" title={p.users.full_name}>
+                    <Image
+                        src={p.users.avatar_url}
+                        alt={p.users.full_name}
+                        width={32}
+                        height={32}
+                    />
                 </div>
+            )
+        ))}
+    </div>
             </header>
 
             {/* Toolbar */}

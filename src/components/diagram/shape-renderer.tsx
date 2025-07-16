@@ -8,7 +8,7 @@ interface ShapeRendererProps {
     onDoubleClick: () => void;
 }
 
-export const ShapeRenderer: React.FC<ShapeRendererProps> = ({
+export const ShapeRenderer: React.FC<ShapeRendererProps> = React.memo(({
     shape,
     isSelected,
     onDoubleClick,
@@ -245,4 +245,4 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = ({
     };
 
     return renderShapeContent();
-};
+});

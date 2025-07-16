@@ -35,7 +35,7 @@ interface ShapePanelProps {
     onToolSelect: (toolId: string) => void;
 }
 
-export const ShapePanel: React.FC<ShapePanelProps> = ({
+export const ShapePanel: React.FC<ShapePanelProps> = React.memo(({
     selectedTool,
     onToolSelect,
 }) => {
@@ -118,4 +118,4 @@ export const ShapePanel: React.FC<ShapePanelProps> = ({
             </div>
         </div>
     );
-};
+});

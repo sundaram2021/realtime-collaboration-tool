@@ -38,7 +38,7 @@ interface ToolbarProps {
     setIsShareDialogOpen: (isOpen: boolean) => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({
+export const Toolbar: React.FC<ToolbarProps> = React.memo(({
     selectedTool,
     shareData,
     onToolSelect,
@@ -236,4 +236,4 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </div>
         </div>
     );
-};
+});

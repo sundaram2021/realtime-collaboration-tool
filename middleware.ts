@@ -12,11 +12,11 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
   const isAuthCallback = request.nextUrl.pathname.startsWith('/auth/callback');
 
-  const isProtectedRoute = !isAuthPage && !isAuthCallback && request.nextUrl.pathname !== '/';
+  const isProtectedRoute = !isAuthPage && !isAuthCallback && request.nextUrl.pathname !== '/' && request.nextUrl.pathname !== '/diagram/**';
 
 
   // Handle root route
-  if (request.nextUrl.pathname === '/') {
+  if (request.nextUrl.pathname === '/' || request.nextUrl.pathname === '/diagram/**') {
     if (!session) {
       const redirectUrl = new URL('/login', request.url);
       return NextResponse.redirect(redirectUrl);

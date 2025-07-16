@@ -21,11 +21,11 @@ export default function HomePage() {
         const newDiagramId = uuidv4();
         await createDiagram({
             id: newDiagramId,
-            title: 'Diagram-' + newDiagramId,
+            title: 'Untitled Diagram',
             data: { shapes: [], connections: [] },
             user_id: session.user.id,
         });
-        router.push(`/diagram?id=${newDiagramId}&permission=${btoa('edit')}`);
+        router.push(`/diagram?id=${newDiagramId}&permission=${btoa('edit').replace(/=/g, '')}`);
     };
 
     const fullName = session?.user.user_metadata.full_name

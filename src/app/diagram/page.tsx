@@ -7,20 +7,28 @@ interface PageProps {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
+
+function decodePermission(encoded?: string): 'view' | 'edit' {
+    if (!encoded) {
+        return 'view';
+    }
+    try {
+        const base64 = encoded + '=='.substring(0, (4 - (encoded.length % 4)) % 4);
+        const decoded = atob(base64);
+        if (decoded === 'edit' || decoded === 'view') {
+            return decoded;
+        }
+    } catch (e) {
+        console.error('Failed to decode permission:', e);
+    }
+    return 'view';
+}
+
+
 export default async function DiagramPage({ searchParams }: PageProps) {
     const resolvedSearchParams = await searchParams;
     const diagramId = resolvedSearchParams.id as string;
-    let permission: 'view' | 'edit' = 'view';
-    try {
-        const decodedPermission = atob(resolvedSearchParams.permission as string);
-        if (decodedPermission === 'edit' || decodedPermission === 'view') {
-            permission = decodedPermission;
-        }
-    } catch (error) {
-        // Fallback to view permission if decoding fails or value is invalid
-        permission = 'view';
-    }
-
+    const permission = decodePermission(resolvedSearchParams.permission as string);
 
     return (
         <Suspense fallback={<Loading />}>

@@ -1,50 +1,19 @@
-'use client'
+import { Suspense } from 'react';
+import Loading from '@/components/loading';
+import DiagramContent from '@/components/diagram/diagram-content'; // We will create this component next
 
-import { Suspense, useEffect } from 'react';
-import DiagramEditor from "@/components/diagram-editor";
-import Loading from "@/components/loading";
-import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
-import { useRouter, useSearchParams } from 'next/navigation'
+export default function DiagramPage({
+    searchParams,
+}: {
+    searchParams: { [key: string]: string | string[] | undefined };
+}) {
+    const diagramId = searchParams.id as string;
+    const permission = searchParams.permission as 'view' | 'edit';
 
-// Create a separate component for the search params logic
-function DiagramContent() {
-    const router = useRouter()
-    const searchParams = useSearchParams()
-    const diagramId = searchParams.get('id')
-    const permission = searchParams.get('permission') as 'view' | 'edit' | null;
-    const { session, isLoadingSession } = useSupabaseAuth();
-
-    // Redirect to login if the user is not authenticated and the session is loaded.
-    useEffect(() => {
-        if (!isLoadingSession && !session) {
-            router.push('/login');
-        }
-    }, [isLoadingSession, session, router]);
-
-    // Show a loading screen while the session is being verified.
-    if (isLoadingSession || !session) {
-        return <Loading />;
-    }
-
-    // Ensure diagramId and permission are present before rendering the editor.
-    if (!diagramId || !permission) {
-        router.push('/');
-        return <Loading />;
-    }
-
-    return (
-        <DiagramEditor
-            diagramId={diagramId}
-            permission={permission}
-            initialSession={session}
-        />
-    );
-}
-
-export default function DiagramPage() {
+    
     return (
         <Suspense fallback={<Loading />}>
-            <DiagramContent />
+            <DiagramContent diagramId={diagramId} permission={permission} />
         </Suspense>
     );
 }

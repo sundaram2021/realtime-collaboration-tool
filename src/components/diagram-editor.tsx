@@ -98,21 +98,28 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
     }, [diagramId, setShapes, setConnections]);
 
     useEffect(() => {
-        if (diagramId && (shapes.length > 0 || connections.length > 0)) {
+        if (diagramId && (shapes.length > 0 || connections.length > 0) && permission === 'edit') {
             const diagramData = {
                 shapes,
                 connections,
             };
-            if (permission === 'edit') {
-                updateDiagram({ id: diagramId, data: diagramData });
 
+            const broadcastChanges = () => {
                 const channel = supabase.channel(`diagram:${diagramId}`);
                 channel.send({
                     type: 'broadcast',
                     event: 'update',
                     payload: { shapes, connections },
                 });
-            }
+            };
+
+            // Debounce the update to avoid excessive database writes and broadcasts
+            const timeoutId = setTimeout(() => {
+                updateDiagram({ id: diagramId, data: diagramData });
+                broadcastChanges();
+            }, 500);
+
+            return () => clearTimeout(timeoutId);
         }
     }, [shapes, connections, diagramId, updateDiagram, permission]);
 
@@ -381,6 +388,27 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
         }
     }, [diagramId]);
 
+    const renderPresence = (p: any) => {
+        if (!p.full_name) return null;
+
+        return (
+            <div key={p.user_id} className="w-8 h-8 rounded-full overflow-hidden" title={p.full_name}>
+                {p.avatar_url ? (
+                    <Image
+                        src={p.avatar_url}
+                        alt={p.full_name}
+                        width={32}
+                        height={32}
+                    />
+                ) : (
+                    <div className="w-full h-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
+                        {p.full_name.charAt(0)}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     if (isMobile) {
         return (
             <div className="h-screen bg-gray-50 flex flex-col">
@@ -388,13 +416,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                 <header className="bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between shadow-sm">
                     <h1 className="text-base font-semibold text-gray-800">Diagram Creator</h1>
                     <div className="flex items-center space-x-2">
-                        <div className="flex items-center space-x-2">
-                            {presence?.map(p => (
-                                <div key={p.user_id} className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold" title={p.users.user_metadata.full_name}>
-                                    {p.users.user_metadata.full_name.charAt(0)}
-                                </div>
-                            ))}
-                        </div>
+                        {presence?.map(renderPresence)}
                     </div>
                 </header>
 
@@ -565,11 +587,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                 <header className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shadow-sm">
                     <h1 className="text-lg font-semibold text-gray-800">Diagram Creator</h1>
                     <div className="flex items-center space-x-2">
-                        {presence?.map(p => (
-                            <div key={p.user_id} className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold" title={p.users.user_metadata.full_name}>
-                                {p.users.user_metadata.full_name.charAt(0)}
-                            </div>
-                        ))}
+                        {presence?.map(renderPresence)}
                     </div>
                 </header>
 
@@ -675,19 +693,8 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit' }
                     </nav>
                 </div>
                 <div className="flex items-center space-x-2">
-        {presence?.map(p => (
-            p.users && (
-                <div key={p.user_id} className="w-8 h-8 rounded-full overflow-hidden" title={p.users.full_name}>
-                    <Image
-                        src={p.users.avatar_url}
-                        alt={p.users.full_name}
-                        width={32}
-                        height={32}
-                    />
+                    {presence?.map(renderPresence)}
                 </div>
-            )
-        ))}
-    </div>
             </header>
 
             {/* Toolbar */}

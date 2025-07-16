@@ -9,29 +9,21 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login')
+  const isAuthPage = request.nextUrl.pathname.startsWith('/login');
   const isAuthCallback = request.nextUrl.pathname.startsWith('/auth/callback');
 
-  const isProtectedRoute = !isAuthPage && !isAuthCallback && request.nextUrl.pathname !== '/' && request.nextUrl.pathname !== '/diagram/**';
-
-
-  // Handle root route
-  if (request.nextUrl.pathname === '/' || request.nextUrl.pathname === '/diagram/**') {
-    if (!session) {
-      const redirectUrl = new URL('/login', request.url);
-      return NextResponse.redirect(redirectUrl);
-    }
-    // If authenticated, allow access to root
-    return res;
-  }
-
-  // If user is not authenticated and trying to access protected route
-  if (!session && isProtectedRoute) {
+  // If the user is not authenticated and is trying to access a protected route,
+  // redirect them to the login page.
+  if (!session && !isAuthPage && !isAuthCallback) {
     const redirectUrl = new URL('/login', request.url);
+    if (request.nextUrl.pathname.startsWith('/diagram')) {
+      redirectUrl.searchParams.set('redirect_to', request.nextUrl.pathname + request.nextUrl.search);
+    }
     return NextResponse.redirect(redirectUrl);
   }
 
-  // If user is authenticated and trying to access auth pages
+  // If the user is authenticated and is trying to access an authentication page,
+  // redirect them to the home page.
   if (session && isAuthPage) {
     const redirectUrl = new URL('/', request.url);
     return NextResponse.redirect(redirectUrl);

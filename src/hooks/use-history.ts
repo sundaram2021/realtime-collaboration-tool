@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { HistoryEntry } from '@/components/diagram/types';
 
 interface HistoryState {
@@ -11,57 +11,41 @@ export const useHistory = (restoreState: (state: HistoryEntry) => void) => {
     history: [{ shapes: [], connections: [] }],
     index: 0
   });
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isRestoring = useRef(false);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
 
   const saveState = useCallback((currentState: HistoryEntry) => {
     if (isRestoring.current) {
         isRestoring.current = false;
         return;
     }
-    
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
 
-    timeoutRef.current = setTimeout(() => {
-      setState(prevState => {
-        const newHistory = prevState.history.slice(0, prevState.index + 1);
-        const newState = JSON.parse(JSON.stringify(currentState));
+    setState(prevState => {
+      const newHistory = prevState.history.slice(0, prevState.index + 1);
+      const lastState = newHistory[newHistory.length - 1];
 
-        if (JSON.stringify(newState) === JSON.stringify(newHistory[newHistory.length - 1])) {
-            return prevState;
-        }
-        
-        newHistory.push(newState);
+      if (JSON.stringify(currentState) === JSON.stringify(lastState)) {
+          return prevState;
+      }
 
-        if (newHistory.length > 50) {
-          newHistory.shift();
-        }
-        
-        return {
-          history: newHistory,
-          index: newHistory.length - 1
-        };
-      });
-    }, 300);
+      newHistory.push(currentState);
+
+      if (newHistory.length > 50) {
+        newHistory.shift();
+      }
+
+      return {
+        history: newHistory,
+        index: newHistory.length - 1
+      };
+    });
   }, []);
 
   const undo = useCallback(() => {
     if (state.index > 0) {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current); // Cancel any pending save
       isRestoring.current = true;
       const newIndex = state.index - 1;
       const previousState = state.history[newIndex];
-      restoreState(JSON.parse(JSON.stringify(previousState)));
+      restoreState(previousState);
       setState(prev => ({
         ...prev,
         index: newIndex
@@ -71,11 +55,10 @@ export const useHistory = (restoreState: (state: HistoryEntry) => void) => {
 
   const redo = useCallback(() => {
     if (state.index < state.history.length - 1) {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current); // Cancel any pending save
       isRestoring.current = true;
       const newIndex = state.index + 1;
       const nextState = state.history[newIndex];
-      restoreState(JSON.parse(JSON.stringify(nextState)));
+      restoreState(nextState);
       setState(prev => ({
         ...prev,
         index: newIndex

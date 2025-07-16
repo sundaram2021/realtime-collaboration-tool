@@ -6,17 +6,22 @@ export const usePresence = (diagramId: string, userId: string) => {
     const queryClient = useQueryClient();
 
     const { data: presence, isLoading: isLoadingPresence } = useQuery({
-    queryKey: ['presence', diagramId],
+        queryKey: ['presence', diagramId],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('presence')
-                .select('user_id, users(user_metadata->>full_name, user_metadata->>avatar_url)') // Corrected query
+                .select('user_id, users!inner(user_metadata)')
                 .eq('diagram_id', diagramId);
 
             if (error) {
                 throw new Error(error.message);
             }
-            return data;
+            // Transform the data to a cleaner structure
+            return data?.map(p => ({
+                user_id: p.user_id,
+                full_name: (p.users as any)?.user_metadata?.full_name,
+                avatar_url: (p.users as any)?.user_metadata?.avatar_url,
+            }));
         },
         enabled: !!diagramId,
     });
@@ -36,13 +41,7 @@ export const usePresence = (diagramId: string, userId: string) => {
                 }
             });
 
-        const interval = setInterval(async () => {
-            await supabase.from('presence').upsert({ user_id: userId, diagram_id: diagramId, last_seen: new Date().toISOString() }, { onConflict: 'user_id, diagram_id' });
-        }, 5000);
-
-
         return () => {
-            clearInterval(interval);
             supabase.removeChannel(channel);
         };
     }, [diagramId, userId, queryClient]);

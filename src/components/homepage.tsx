@@ -21,11 +21,11 @@ export default function HomePage() {
         const newDiagramId = uuidv4();
         await createDiagram({
             id: newDiagramId,
-            title: 'Untitled Diagram',
+            title: 'Diagram-' + newDiagramId,
             data: { shapes: [], connections: [] },
             user_id: session.user.id,
         });
-        router.push(`/diagram?id=${newDiagramId}&permission=edit`);
+        router.push(`/diagram?id=${newDiagramId}&permission=${btoa('edit')}`);
     };
 
     const fullName = session?.user.user_metadata.full_name
@@ -107,7 +107,7 @@ export default function HomePage() {
                                 <button
                                     onClick={() => signOut()}
                                     className="p-3 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200"
-                                    title="Sign Out"    
+                                    title="Sign Out"
                                 >
                                     <LogOut className="w-5 h-5" />
                                 </button>

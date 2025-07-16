@@ -1,5 +1,5 @@
 'use client'
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import DiagramEditor from "@/components/diagram-editor";
 import Loading from "@/components/loading";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
@@ -31,10 +31,12 @@ export default function DiagramPage() {
     }
 
     return (
-        <DiagramEditor
-            diagramId={diagramId}
-            permission={permission}
-            initialSession={session} 
-        />
+        <Suspense>  
+            <DiagramEditor
+                diagramId={diagramId}
+                permission={permission}
+                initialSession={session}
+            />
+        </Suspense>
     );
 }

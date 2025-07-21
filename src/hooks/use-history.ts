@@ -8,7 +8,7 @@ interface HistoryState {
 
 export const useHistory = (restoreState: (state: HistoryEntry) => void) => {
   const [state, setState] = useState<HistoryState>({
-    history: [{ shapes: [], connections: [] }],
+    history: [{ shapes: [], connections: [], drawings: [] }],
     index: 0
   });
   const isRestoring = useRef(false);
@@ -68,7 +68,7 @@ export const useHistory = (restoreState: (state: HistoryEntry) => void) => {
 
   const clearHistory = useCallback(() => {
     setState({
-      history: [{ shapes: [], connections: [] }],
+      history: [{ shapes: [], connections: [], drawings: [] }],
       index: 0
     });
   }, []);

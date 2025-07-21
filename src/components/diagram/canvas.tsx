@@ -1,5 +1,5 @@
 import React, { useRef, useCallback, useState, forwardRef } from 'react';
-import { Shape, Tool, Connection, ConnectionPoint, SelectionBox, ConnectionHandle } from './types';
+import { Shape, Tool, Connection, ConnectionPoint, SelectionBox, ConnectionHandle, Drawing } from './types';
 import { ConnectionLayer } from './connection-layer';
 import { ConnectionHandles } from './connection-handles';
 import { ShapeRenderer } from './shape-renderer';
@@ -8,6 +8,7 @@ import { ShapeRenderer } from './shape-renderer';
 interface CanvasProps {
     shapes: Shape[];
     connections: Connection[];
+    drawings: Drawing[];
     selectedIds: Set<string>;
     selectedTool: string;
     zoom: number;
@@ -25,13 +26,28 @@ interface CanvasProps {
     onConnectionCancel: () => void;
     onConnectionUpdate: (id: string, updates: Partial<Connection>) => void;
     onSelectionBoxUpdate?: (box: SelectionBox) => void;
+    onDrawingStart: (x: number, y: number) => void;
+    onDrawingUpdate: (x: number, y: number) => void;
+    onDrawingEnd: () => void;
 }
 
 const GRID_SIZE = 20;
 
+const pointsToPath = (points: { x: number, y: number }[]): string => {
+    if (points.length === 0) return "";
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y} L ${points[0].x} ${points[0].y}`;
+
+    let path = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+        path += ` L ${points[i].x} ${points[i].y}`;
+    }
+    return path;
+};
+
 export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     shapes,
     connections,
+    drawings,
     selectedIds,
     selectedTool,
     zoom,
@@ -49,6 +65,9 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     onConnectionCancel,
     onConnectionUpdate,
     onSelectionBoxUpdate,
+    onDrawingStart,
+    onDrawingUpdate,
+    onDrawingEnd,
 }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -66,25 +85,14 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     const [draggedShapes, setDraggedShapes] = useState<Map<string, { x: number; y: number }>>(new Map());
     const [resizeStart, setResizeStart] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
-    // console.log("container ref: ", containerRef)
-
     const getToolById = useCallback((toolId: string): Tool | null => {
         const tools = [
             { id: 'rectangle', type: 'rectangle', label: 'Rectangle', category: 'Basic', icon: () => null, defaultWidth: 120, defaultHeight: 80 },
             { id: 'circle', type: 'circle', label: 'Circle', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 100 },
             { id: 'triangle', type: 'triangle', label: 'Triangle', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 80 },
             { id: 'diamond', type: 'diamond', label: 'Diamond', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 80 },
-            { id: 'hexagon', type: 'hexagon', label: 'Hexagon', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 80 },
-            { id: 'pentagon', type: 'pentagon', label: 'Pentagon', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 80 },
-            { id: 'star', type: 'star', label: 'Star', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 80 },
-            { id: 'heart', type: 'heart', label: 'Heart', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 80 },
             { id: 'text', type: 'text', label: 'Text', category: 'Basic', icon: () => null, defaultWidth: 100, defaultHeight: 30 },
-            { id: 'line-straight', type: 'connection', label: 'Line', category: 'Connections', icon: () => null, isConnection: true },
             { id: 'line-arrow', type: 'connection', label: 'Arrow', category: 'Connections', icon: () => null, isConnection: true },
-            { id: 'line-double-arrow', type: 'connection', label: 'Double Arrow', category: 'Connections', icon: () => null, isConnection: true },
-            { id: 'line-dotted', type: 'connection', label: 'Dotted Line', category: 'Connections', icon: () => null, isConnection: true },
-            { id: 'line-dotted-arrow', type: 'connection', label: 'Dotted Arrow', category: 'Connections', icon: () => null, isConnection: true },
-            { id: 'line-dotted-double', type: 'connection', label: 'Dotted Double', category: 'Connections', icon: () => null, isConnection: true },
         ];
         return tools.find(t => t.id === toolId) || null;
     }, []);
@@ -261,6 +269,11 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         const coords = getCanvasCoordinates(e.clientX, e.clientY);
 
+        if (selectedTool === 'pen') {
+            onDrawingStart(coords.x, coords.y);
+            return;
+        }
+
         if (e.button === 1 || (e.button === 0 && e.ctrlKey)) {
             setIsPanning(true);
             setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
@@ -363,11 +376,16 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                 }
             }
         }
-    }, [selectedTool, getCanvasCoordinates, getShapeAt, getHandleAt, getResizeHandleAt, selectedIds, onShapeSelect, onShapeCreate, onConnectionStart, onConnectionComplete, onConnectionCancel, getConnectionPoint, pan, shapes, isConnecting, connectionStart, getToolById]);
+    }, [selectedTool, getCanvasCoordinates, getShapeAt, getHandleAt, getResizeHandleAt, selectedIds, onShapeSelect, onShapeCreate, onConnectionStart, onConnectionComplete, onConnectionCancel, getConnectionPoint, pan, shapes, isConnecting, connectionStart, getToolById, onDrawingStart]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
         const coords = getCanvasCoordinates(e.clientX, e.clientY);
         setMousePos(coords);
+
+        if (selectedTool === 'pen') {
+            onDrawingUpdate(coords.x, coords.y);
+            return;
+        }
 
         const handle = getHandleAt(coords.x, coords.y);
         setHoveredHandle(handle);
@@ -415,9 +433,14 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
             });
             return;
         }
-    }, [isDragging, isPanning, isSelecting, isResizing, draggedShapes, dragStart, selectionBox, resizeStart, selectedIds, getCanvasCoordinates, handleShapeUpdate, onPanChange, onSelectionBoxUpdate, getHandleAt]);
+    }, [isDragging, isPanning, isSelecting, isResizing, draggedShapes, dragStart, selectionBox, resizeStart, selectedIds, getCanvasCoordinates, handleShapeUpdate, onPanChange, onSelectionBoxUpdate, getHandleAt, selectedTool, onDrawingUpdate]);
 
     const handleMouseUp = useCallback((e: React.MouseEvent) => {
+        if (selectedTool === 'pen') {
+            onDrawingEnd();
+            return;
+        }
+
         if (isConnecting && connectionStart) {
             const coords = getCanvasCoordinates(e.clientX, e.clientY);
             const handle = getHandleAt(coords.x, coords.y);
@@ -466,7 +489,7 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
         setSelectionBox(null);
         setDraggedShapes(new Map());
         setResizeStart(null);
-    }, [isConnecting, isSelecting, selectionBox, shapes, connectionStart, getCanvasCoordinates, getHandleAt, getShapeAt, getConnectionPoint, onConnectionComplete, onConnectionCancel, onMultiSelect]);
+    }, [isConnecting, isSelecting, selectionBox, shapes, connectionStart, getCanvasCoordinates, getHandleAt, getShapeAt, getConnectionPoint, onConnectionComplete, onConnectionCancel, onMultiSelect, selectedTool, onDrawingEnd]);
 
     const handleDoubleClick = useCallback((e: React.MouseEvent) => {
         if (selectedTool !== 'select') return;
@@ -512,29 +535,21 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     return (
         <div
             ref={ref}
-            className="relative w-full h-full overflow-hidden bg-white"
+            className="relative w-full h-full overflow-hidden bg-gray-50 cursor-grab active:cursor-grabbing"
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
             onDoubleClick={handleDoubleClick}
             style={{
-                cursor: isDragging ? 'grabbing' :
-                    isPanning ? 'grabbing' :
-                        isConnecting ? 'crosshair' :
-                            isResizing ? 'nw-resize' :
-                                hoveredHandle ? 'pointer' :
-                                    selectedTool === 'select' ? 'default' : 'crosshair'
+                cursor: isPanning ? 'grabbing' : (selectedTool === 'pen' ? 'crosshair' : 'default'),
             }}
         >
             {showGrid && (
                 <div
-                    className="absolute inset-0 opacity-50"
+                    className="absolute inset-0 opacity-30"
                     style={{
-                        backgroundImage: `
-              linear-gradient(to right, #e5e7eb 1px, transparent 1px),
-              linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)
-            `,
+                        backgroundImage: `radial-gradient(#d1d5db 1px, transparent 1px)`,
                         backgroundSize: `${GRID_SIZE * zoom}px ${GRID_SIZE * zoom}px`,
                         backgroundPosition: `${pan.x}px ${pan.y}px`,
                     }}
@@ -549,6 +564,23 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                     transformOrigin: '0 0'
                 }}
             >
+                <svg
+                    className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                    style={{ overflow: 'visible' }}
+                >
+                    {drawings.map(drawing => (
+                        <path
+                            key={drawing.id}
+                            d={pointsToPath(drawing.points)}
+                            stroke={drawing.color}
+                            strokeWidth={drawing.strokeWidth}
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
+                    ))}
+                </svg>
+
                 {shapes.map(shape => (
                     <div key={shape.id} className="relative">
                         <ShapeRenderer

@@ -31,9 +31,17 @@ export interface Connection {
   width: number;
 }
 
+export interface Drawing {
+  id: string;
+  points: { x: number; y: number }[];
+  color: string;
+  strokeWidth: number;
+}
+
 export interface HistoryEntry {
   shapes: Shape[];
   connections: Connection[];
+  drawings: Drawing[];
 }
 
 export interface Tool {

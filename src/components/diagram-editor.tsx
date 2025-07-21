@@ -8,7 +8,7 @@ import { useHistory } from '@/hooks/use-history';
 import { useConnections } from '@/hooks/use-connection';
 import { useDrawing } from '@/hooks/use-drawing';
 import { useClipboard } from '@/hooks/use-clipboard';
-import { Shape, Tool, Connection, ConnectionPoint, SelectionBox, HistoryEntry, Drawing } from './diagram/types';
+import { Shape, Tool, Connection, ConnectionPoint, SelectionBox, HistoryEntry } from './diagram/types';
 import { useToast } from '@/hooks/use-toast';
 import { useDiagrams } from "@/hooks/use-diagrams";
 import { supabase } from '@/lib/supabaseClient';
@@ -33,7 +33,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
     const { shapes, setShapes, addShape, updateShape, addShapes } = useShapes();
-    const { drawings, setDrawings, isDrawing, startDrawing, addPointToDrawing, finishDrawing } = useDrawing();
+    const { drawings, setDrawings, startDrawing, addPointToDrawing, finishDrawing } = useDrawing();
     const {
         selectedIds,
         selectedShapes,
@@ -41,7 +41,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
         selectShape,
         selectShapes,
         clearSelection,
-        selectAll,
     } = useSelection(shapes);
 
     const {
@@ -52,7 +51,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
         startConnection,
         completeConnection,
         cancelConnection,
-        addConnections,
         updateConnection
     } = useConnections();
 
@@ -71,7 +69,6 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
     const [showGrid, setShowGrid] = useState(true);
     const [selectedTool, setSelectedTool] = useState<string>('select');
 
-    // Drawing style state
     const [penColor, setPenColor] = useState('#000000');
     const [penWidth, setPenWidth] = useState(3);
 
@@ -106,8 +103,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
         if (diagramId && effectivePermission === 'edit') {
             const diagramData = { shapes, connections, drawings };
             const broadcastChanges = () => {
-                const channel = supabase.channel(`diagram:${diagramId}`);
-                channel.send({
+                supabase.channel(`diagram:${diagramId}`).send({
                     type: 'broadcast',
                     event: 'update',
                     payload: diagramData,
@@ -145,29 +141,72 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
 
     const handleShapeCreate = useCallback((tool: Tool, x: number, y: number) => {
         if (effectivePermission === 'edit') {
-            const shape = addShape(tool, x, y);
-            selectShape(shape.id);
+            addShape(tool, x, y);
             setSelectedTool('select');
         }
-    }, [addShape, selectShape, effectivePermission]);
-
-    const handleShapeSelect = useCallback((id: string | null, multiSelect = false) => {
-        if (id === null) {
-            clearSelection();
-        } else {
-            selectShape(id, multiSelect);
-        }
-    }, [selectShape, clearSelection]);
-
-    const handleMultiSelect = useCallback((ids: string[]) => {
-        selectShapes(ids);
-    }, [selectShapes]);
+    }, [addShape, effectivePermission]);
 
     const handleShapeUpdate = useCallback((id: string, updates: Partial<Shape>) => {
         if (effectivePermission === 'edit') {
             updateShape(id, updates);
         }
     }, [updateShape, effectivePermission]);
+
+    const handleSaveToDrive = useCallback(async () => {
+        if (!session || !session.provider_token) {
+            toast({
+                title: "Authentication Error",
+                description: "You need to re-authenticate with Google Drive.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        if (!canvasRef.current) return;
+
+        try {
+            const canvas = await html2canvas(canvasRef.current, { backgroundColor: '#f9fafb' });
+            canvas.toBlob(async (blob) => {
+                if (!blob) return;
+                const fileName = `${diagram?.title || 'diagram'}-${new Date().toISOString()}.png`;
+                const metadata = { name: fileName, mimeType: 'image/png' };
+                const form = new FormData();
+                form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                form.append('file', blob);
+
+                const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${session.provider_token}` },
+                    body: form,
+                });
+
+                if (!response.ok) throw new Error('Failed to upload file.');
+
+                toast({
+                    title: "Diagram Saved",
+                    description: "Your diagram has been saved to Google Drive.",
+                });
+            }, 'image/png');
+        } catch (error: any) {
+            toast({
+                title: "Error Saving",
+                description: error.message || "Could not save to Google Drive.",
+                variant: "destructive",
+            });
+        }
+    }, [session, toast, diagram?.title]);
+
+
+    const handleDownload = useCallback(() => {
+        if (!canvasRef.current) return;
+        html2canvas(canvasRef.current, { backgroundColor: '#f9fafb' }).then((canvas) => {
+            const link = document.createElement('a');
+            link.download = `${diagram?.title || 'diagram'}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }, [diagram?.title]);
+
 
     if (isLoadingDiagram) {
         return <Loading />;
@@ -182,6 +221,8 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
                 presentUsers={presentUsers}
                 setIsShareDialogOpen={setIsShareDialogOpen}
                 signOut={signOut}
+                onSaveToDrive={handleSaveToDrive}
+                onDownload={handleDownload}
             />
 
             <main className="flex-1 relative">
@@ -198,8 +239,8 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
                     isConnecting={isConnecting}
                     connectionStart={connectionStart}
                     onShapeCreate={handleShapeCreate}
-                    onShapeSelect={handleShapeSelect}
-                    onMultiSelect={handleMultiSelect}
+                    onShapeSelect={selectShape}
+                    onMultiSelect={selectShapes}
                     onShapeUpdate={handleShapeUpdate}
                     onPanChange={setPan}
                     onConnectionStart={startConnection}
@@ -211,15 +252,18 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
                     onDrawingEnd={handleDrawingEnd}
                 />
 
-                <LeftSidebar selectedTool={selectedTool} onToolSelect={setSelectedTool} />
-
-                <BottomBar
-                    zoom={zoom}
-                    onZoomChange={setZoom}
+                <LeftSidebar
+                    selectedTool={selectedTool}
+                    onToolSelect={setSelectedTool}
                     canUndo={canUndo}
                     canRedo={canRedo}
                     onUndo={undo}
                     onRedo={redo}
+                />
+
+                <BottomBar
+                    zoom={zoom}
+                    onZoomChange={setZoom}
                 />
 
                 {rightPanelOpen && (

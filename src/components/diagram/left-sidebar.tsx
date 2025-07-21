@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer, Pen, Square, Circle, Triangle, Diamond, Minus, ArrowRight, Type } from 'lucide-react';
+import { MousePointer, Pen, Square, Circle, Triangle, Diamond, Type, ArrowRight, Undo, Redo } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -23,9 +23,13 @@ const tools: ToolButton[] = [
 interface LeftSidebarProps {
     selectedTool: string;
     onToolSelect: (toolId: string) => void;
+    canUndo: boolean;
+    canRedo: boolean;
+    onUndo: () => void;
+    onRedo: () => void;
 }
 
-export const LeftSidebar: React.FC<LeftSidebarProps> = ({ selectedTool, onToolSelect }) => {
+export const LeftSidebar: React.FC<LeftSidebarProps> = ({ selectedTool, onToolSelect, canUndo, canRedo, onUndo, onRedo }) => {
     return (
         <aside className="absolute top-1/2 left-4 transform -translate-y-1/2 z-20 bg-white rounded-lg shadow-lg border border-gray-200 p-2 flex flex-col gap-2">
             <TooltipProvider>
@@ -49,6 +53,22 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ selectedTool, onToolSe
                         </TooltipContent>
                     </Tooltip>
                 ))}
+
+                <div className="border-t my-1 border-gray-200" />
+
+                <Tooltip delayDuration={100}>
+                    <TooltipTrigger asChild>
+                        <button onClick={onUndo} disabled={!canUndo} className="p-3 text-gray-600 hover:bg-gray-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"><Undo size={20} /></button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" sideOffset={10}><p>Undo</p></TooltipContent>
+                </Tooltip>
+                <Tooltip delayDuration={100}>
+                    <TooltipTrigger asChild>
+                        <button onClick={onRedo} disabled={!canRedo} className="p-3 text-gray-600 hover:bg-gray-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"><Redo size={20} /></button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" sideOffset={10}><p>Redo</p></TooltipContent>
+                </Tooltip>
+
             </TooltipProvider>
         </aside>
     );

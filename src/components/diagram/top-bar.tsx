@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Share2, LogOut, Save, Download } from 'lucide-react';
 import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
@@ -10,10 +10,34 @@ interface TopBarProps {
     diagramTitle: string;
     onSaveToDrive: () => void;
     onDownload: () => void;
+    onTitleUpdate: (newTitle: string) => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ presentUsers, setIsShareDialogOpen, signOut, diagramTitle, onSaveToDrive, onDownload }) => {
+export const TopBar: React.FC<TopBarProps> = ({ presentUsers, setIsShareDialogOpen, signOut, diagramTitle, onSaveToDrive, onDownload, onTitleUpdate }) => {
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [newTitle, setNewTitle] = useState(diagramTitle);
 
+    const handleTitleClick = () => {
+        setIsEditingTitle(true);
+    };
+
+    const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setNewTitle(e.target.value);
+    };
+
+    const handleTitleBlur = () => {
+        setIsEditingTitle(false);
+        if (newTitle.trim() && newTitle !== diagramTitle) {
+            onTitleUpdate(newTitle.trim());
+        }
+    };
+
+    const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            handleTitleBlur();
+        }
+    };
+    
     const renderPresence = (p: any) => {
         if (!p || !p.user_metadata) return null;
         const { user_metadata } = p;
@@ -34,7 +58,24 @@ export const TopBar: React.FC<TopBarProps> = ({ presentUsers, setIsShareDialogOp
     return (
         <header className="absolute top-4 left-0 right-0 z-20 px-4 flex justify-between items-center pointer-events-none">
             <div className="flex items-center gap-2 bg-white p-1 rounded-lg shadow-lg border border-gray-200 pointer-events-auto">
-                <div className="px-3 py-1 font-semibold text-gray-700">{diagramTitle}</div>
+                {isEditingTitle ? (
+                    <input
+                        type="text"
+                        value={newTitle}
+                        onChange={handleTitleChange}
+                        onBlur={handleTitleBlur}
+                        onKeyDown={handleTitleKeyDown}
+                        className="px-3 py-1 font-semibold text-gray-700 bg-transparent border-none focus:ring-0"
+                        autoFocus
+                    />
+                ) : (
+                    <div
+                        className="px-3 py-1 font-semibold text-gray-700 cursor-pointer"
+                        onClick={handleTitleClick}
+                    >
+                        {diagramTitle}
+                    </div>
+                )}
                 <div className="w-px h-6 bg-gray-200" />
                 <TooltipProvider>
                     <Tooltip delayDuration={100}>

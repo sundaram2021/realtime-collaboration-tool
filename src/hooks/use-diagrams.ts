@@ -31,10 +31,18 @@ export const useDiagrams = (diagramId: string) => {
     });
 
     const { mutate: updateDiagram } = useMutation({
-        mutationFn: async (diagramData: { id: string; data: any; }) => {
+        mutationFn: async (diagramData: { id: string; data?: any; title?: string }) => {
+            const updates: { data?: any; title?: string } = {};
+            if (diagramData.data) {
+                updates.data = diagramData.data;
+            }
+            if (diagramData.title) {
+                updates.title = diagramData.title;
+            }
+
             const { error } = await supabase
                 .from('diagrams')
-                .update({ data: diagramData.data })
+                .update(updates)
                 .eq('id', diagramId);
             if (error) throw error;
         },

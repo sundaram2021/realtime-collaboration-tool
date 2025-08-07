@@ -17,7 +17,7 @@ interface CanvasProps {
     isConnecting: boolean;
     connectionStart: ConnectionPoint | null;
     onShapeCreate: (tool: Tool, x: number, y: number) => void;
-    onShapeSelect: (id: string , multiSelect?: boolean) => void;
+    onShapeSelect: (id: string, multiSelect?: boolean) => void;
     onMultiSelect?: (ids: string[]) => void;
     onShapeUpdate: (id: string, updates: Partial<Shape>) => void;
     onPanChange: (pan: { x: number; y: number }) => void;
@@ -535,7 +535,7 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     return (
         <div
             ref={ref}
-            className="relative w-full h-full overflow-hidden bg-gray-50"
+            className="relative w-full h-full overflow-hidden bg-gray-900"
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -549,7 +549,7 @@ export const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                 <div
                     className="absolute inset-0"
                     style={{
-                        backgroundImage: `radial-gradient(#d1d5db 1px, transparent 1px)`,
+                        backgroundImage: `radial-gradient(#4a4a4a 1px, transparent 1px)`, // Darker grid
                         backgroundSize: `${GRID_SIZE * zoom}px ${GRID_SIZE * zoom}px`,
                         backgroundPosition: `${pan.x}px ${pan.y}px`,
                         opacity: 0.3,

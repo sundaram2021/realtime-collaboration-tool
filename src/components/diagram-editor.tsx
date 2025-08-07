@@ -121,6 +121,12 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
         saveState({ shapes, connections, drawings });
     }, [shapes, connections, drawings, saveState]);
 
+    const handleTitleUpdate = (newTitle: string) => {
+        if (diagramId) {
+            updateDiagram({ id: diagramId, title: newTitle });
+        }
+    };
+
     const handleDrawingStart = useCallback((x: number, y: number) => {
         if (effectivePermission === 'edit') {
             startDrawing(x, y, penColor, penWidth);
@@ -223,6 +229,7 @@ const DiagramEditor: React.FC<{ diagramId: string, permission: 'view' | 'edit', 
                 signOut={signOut}
                 onSaveToDrive={handleSaveToDrive}
                 onDownload={handleDownload}
+                onTitleUpdate={handleTitleUpdate}
             />
 
             <main className="flex-1 relative">
